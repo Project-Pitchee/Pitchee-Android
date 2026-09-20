@@ -13,6 +13,9 @@ import io.rovly.pitchee.data.RealtimeF0AudioRecorder
 import java.util.ArrayDeque
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.exp
+import kotlin.math.ln
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,12 +37,7 @@ enum class SpectrumMode {
 
 data class SpectrumFramePoint(
     val timestampSeconds: Double,
-    val magnitudes: FloatArray,
-    val firstBinIndex: Int,
-    val binHz: Float,
-    val centroidHz: Float,
-    val rolloffHz: Float,
-    val flatness: Float,
+    val bands: FloatArray,
 )
 
 data class SpectrumUiState(
@@ -202,18 +200,17 @@ class SpectrumViewModel(
                                     firstBinIndex,
                                     binHz,
                                     _,
-                                    centroidHz,
-                                    rolloffHz,
-                                    flatness,
+                                    _,
+                                    _,
+                                    _,
                                 ->
                                 val point = SpectrumFramePoint(
                                     timestampSeconds = timestampSeconds,
-                                    magnitudes = magnitudes,
-                                    firstBinIndex = firstBinIndex.toInt(),
-                                    binHz = binHz,
-                                    centroidHz = centroidHz,
-                                    rolloffHz = rolloffHz,
-                                    flatness = flatness,
+                                    bands = downsampleSpectrum(
+                                        magnitudes = magnitudes,
+                                        firstBinIndex = firstBinIndex.toInt(),
+                                        binHz = binHz,
+                                    ),
                                 )
                                 frameBuffer.addLast(point)
                                 while (frameBuffer.isNotEmpty() &&
@@ -469,6 +466,29 @@ class SpectrumViewModel(
             }
     }
 
+    private fun downsampleSpectrum(
+        magnitudes: FloatArray,
+        firstBinIndex: Int,
+        binHz: Float,
+    ): FloatArray {
+        val bands = FloatArray(SPECTRUM_BAND_COUNT)
+        if (magnitudes.isEmpty() || binHz <= 0f) return bands
+        val minHz = (firstBinIndex * binHz).coerceAtLeast(1f)
+        val maxHz = (
+            (firstBinIndex + magnitudes.lastIndex) * binHz
+            ).coerceAtLeast(minHz + 1f)
+        val logRange = ln(maxHz / minHz)
+        for (index in 0 until SPECTRUM_BAND_COUNT) {
+            val frequencyRatio = 1f - index.toFloat() / (SPECTRUM_BAND_COUNT - 1)
+            val frequencyHz = minHz * exp(frequencyRatio * logRange)
+            val magnitudeIndex = (frequencyHz / binHz - firstBinIndex)
+                .roundToInt()
+                .coerceIn(0, magnitudes.lastIndex)
+            bands[index] = magnitudes[magnitudeIndex]
+        }
+        return bands
+    }
+
     private fun acceptControlEvent(): Boolean {
         val now = System.nanoTime() / 1_000_000L
         if (now - lastControlAtMillis < CONTROL_DEBOUNCE_MILLIS) return false
@@ -481,15 +501,16 @@ class SpectrumViewModel(
     }
 
     companion object {
-        private const val FFT_SIZE = 1024
-        private const val HOP_SAMPLES = 256
+        private const val FFT_SIZE = 512
+        private const val HOP_SAMPLES = 512
         private const val MIN_HZ = 40
         private const val MAX_HZ = 8000
         private const val READ_SAMPLES = 512
         const val WINDOW_SECONDS = 5.0
         private const val SAMPLE_RATE = 16_000
         private const val HISTORY_SECONDS = 30.0
-        private const val PUBLISH_INTERVAL_SECONDS = 1.0 / 30.0
+        private const val PUBLISH_INTERVAL_SECONDS = 1.0 / 15.0
+        private const val SPECTRUM_BAND_COUNT = 72
         private const val PLAYBACK_CHUNK_SAMPLES = 512
         private const val END_EPSILON_SECONDS = 0.01
         private const val END_EPSILON_SAMPLES = 160L

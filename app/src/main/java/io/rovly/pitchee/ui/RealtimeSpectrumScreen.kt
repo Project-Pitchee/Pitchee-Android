@@ -67,8 +67,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.rovly.pitchee.R
 import kotlin.math.log10
-import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 internal fun RealtimeSpectrumScreen() {
@@ -374,20 +375,34 @@ private fun SpectrumChart(
     val latestTimestamp = frames.lastOrNull()?.timestampSeconds ?: 0.0
     val targetWindowEnd = replayWindowEndSeconds ?: latestTimestamp
     val windowEndAnimation = remember { Animatable(targetWindowEnd.toFloat()) }
-    LaunchedEffect(targetWindowEnd, mode) {
-        if (mode == SpectrumMode.REPLAYING || mode == SpectrumMode.ANALYSIS_PAUSED) {
-            windowEndAnimation.snapTo(targetWindowEnd.toFloat())
-        } else {
+    var previousMode by remember { mutableStateOf(mode) }
+    var animateWindowToLive by remember { mutableStateOf(false) }
+    LaunchedEffect(mode) {
+        if (mode == SpectrumMode.PREPARING && previousMode == SpectrumMode.REPLAYING) {
+            animateWindowToLive = true
+        } else if (mode == SpectrumMode.REPLAYING || mode == SpectrumMode.ANALYSIS_PAUSED) {
+            animateWindowToLive = false
+        }
+        previousMode = mode
+    }
+    LaunchedEffect(targetWindowEnd, mode, animateWindowToLive) {
+        if (mode == SpectrumMode.ANALYZING && animateWindowToLive) {
             windowEndAnimation.animateTo(
                 targetValue = targetWindowEnd.toFloat(),
                 animationSpec = spring(dampingRatio = 0.82f, stiffness = 220f),
             )
+            animateWindowToLive = false
+        } else {
+            windowEndAnimation.snapTo(targetWindowEnd.toFloat())
         }
     }
     val windowEnd = windowEndAnimation.value.toDouble()
     val windowStart = windowEnd - SPECTRUM_WINDOW_SECONDS
-    val image = remember(frames, windowStart, windowEnd) {
-        createSpectrumBitmap(frames, windowStart, windowEnd)
+    var image by remember { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(frames, windowStart, windowEnd) {
+        image = withContext(Dispatchers.Default) {
+            createSpectrumBitmap(frames, windowStart, windowEnd)
+        }
     }
     val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.62f)
     val playheadColor = MaterialTheme.colorScheme.primary
@@ -411,11 +426,12 @@ private fun SpectrumChart(
             val plotHeightPx = (size.height - plotTopPx).coerceAtLeast(1f)
             fun yFor(hz: Float): Float = plotTopPx + plotHeightPx - yFraction(hz) * plotHeightPx
 
-            if (image != null) {
+            val spectrumImage = image
+            if (spectrumImage != null) {
                 drawImage(
-                    image = image,
+                    image = spectrumImage,
                     srcOffset = IntOffset.Zero,
-                    srcSize = IntSize(image.width, image.height),
+                    srcSize = IntSize(spectrumImage.width, spectrumImage.height),
                     dstOffset = IntOffset(plotLeftPx.roundToInt(), plotTopPx.roundToInt()),
                     dstSize = IntSize(plotWidthPx.roundToInt(), plotHeightPx.roundToInt()),
                     filterQuality = FilterQuality.Low,
@@ -469,17 +485,6 @@ private fun createSpectrumBitmap(
     val width = SPECTRUM_BITMAP_WIDTH
     val height = SPECTRUM_BITMAP_HEIGHT
     val pixels = IntArray(width * height)
-    val minHz = (visibleFrames.first().firstBinIndex * visibleFrames.first().binHz)
-        .coerceAtLeast(1f)
-    val maxHz = (
-        (visibleFrames.first().firstBinIndex + visibleFrames.first().magnitudes.lastIndex) *
-            visibleFrames.first().binHz
-        ).coerceAtLeast(minHz + 1f)
-    val logRange = log10(maxHz / minHz)
-    val frequencyBins = FloatArray(height) { y ->
-        val frequencyRatio = 1f - y.toFloat() / (height - 1).coerceAtLeast(1)
-        minHz * 10.0.pow(frequencyRatio.toDouble() * logRange).toFloat()
-    }
     val firstTimestamp = visibleFrames.first().timestampSeconds
     val lastTimestamp = visibleFrames.last().timestampSeconds
     val frameSpan = (lastTimestamp - firstTimestamp).coerceAtLeast(0.001)
@@ -494,12 +499,15 @@ private fun createSpectrumBitmap(
         }
         val frame = visibleFrames[frameIndex]
         val hasFrame = timestamp >= firstTimestamp && timestamp <= lastTimestamp
-        val magnitudeLastIndex = frame.magnitudes.lastIndex
         for (y in 0 until height) {
-            val magnitudeIndex = (frequencyBins[y] / frame.binHz - frame.firstBinIndex)
-                .roundToInt()
-                .coerceIn(0, magnitudeLastIndex)
-            val decibels = frame.magnitudes[magnitudeIndex]
+            val bandIndex = if (height <= 1) {
+                0
+            } else {
+                (y.toFloat() / (height - 1) * frame.bands.lastIndex)
+                    .roundToInt()
+                    .coerceIn(0, frame.bands.lastIndex)
+            }
+            val decibels = frame.bands.getOrElse(bandIndex) { SPECTRUM_FLOOR_DB }
             val normalized = ((decibels - SPECTRUM_MIN_DB) / SPECTRUM_DB_RANGE)
                 .coerceIn(0f, 1f)
             pixels[y * width + x] = if (hasFrame) {
@@ -532,8 +540,9 @@ private val SpectrumCyan = Color(0xFF19B9C8)
 private val SpectrumPink = Color(0xFFE75480)
 private val SpectrumHigh = Color(0xFFFFD9A0)
 private const val SPECTRUM_WINDOW_SECONDS = 5.0
-private const val SPECTRUM_BITMAP_WIDTH = 192
-private const val SPECTRUM_BITMAP_HEIGHT = 72
+private const val SPECTRUM_BITMAP_WIDTH = 128
+private const val SPECTRUM_BITMAP_HEIGHT = 56
+private const val SPECTRUM_FLOOR_DB = -120f
 private const val SPECTRUM_MIN_DB = -90f
 private const val SPECTRUM_DB_RANGE = 75f
 private const val SPECTRUM_MIN_HZ = 40f
