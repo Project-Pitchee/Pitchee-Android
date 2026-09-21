@@ -24,6 +24,7 @@
     <string name="update_download_failed">Update download failed</string>
     <string name="update_download">Download update</string>
     <string name="update_later">Later</string>
+    <string name="update_snooze_week">Don\'t bother me for a week.</string>
     <string name="update_downloading_title">Downloading update</string>
     <string name="recording_again">Record again</string>
     <string name="history_detail_loading">Opening saved analysis</string>
@@ -64,19 +65,15 @@
     <string name="nav_settings">Settings</string>
     <string name="nav_score_test">Rules</string>
 
-    <string name="pitch_summary_title">Pitch session</string>
-    <string name="pitch_summary_average">Average F0</string>
-    <string name="pitch_summary_samples">%1$d valid F0 samples</string>
-    <string name="pitch_summary_ratio_note">Calculated using the 165 Hz boundary</string>
-    <string name="pitch_summary_ratio">Male / female range ratio</string>
-    <string name="pitch_summary_male">Male range</string>
-    <string name="pitch_summary_female">Female range</string>
-    <string name="pitch_summary_back">Back to pitch</string>
     <string name="pitch_title">Pitch</string>
     <string name="pitch_subtitle">Note: 165 Hz is the common boundary</string>
     <string name="pitch_no_voice">Waiting for a stable pitch</string>
     <string name="pitch_current_f0">Current pitch</string>
     <string name="pitch_preparing">Preparing Swift-F0</string>
+    <string name="pitch_rewind_3">Rewind 3 seconds</string>
+    <string name="pitch_rewind_seconds">Rewind %1$.0f seconds</string>
+    <string name="pitch_last_page">Last page</string>
+    <string name="pitch_resume_analysis">Resume analysis</string>
     <string name="pitch_start_monitoring">Start monitoring</string>
     <string name="pitch_stop_monitoring">Stop monitoring</string>
     <string name="spectrum_title">Spectrum</string>

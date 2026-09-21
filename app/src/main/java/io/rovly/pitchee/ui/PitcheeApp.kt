@@ -12,6 +12,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -27,6 +28,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -145,29 +147,54 @@ fun PitcheeApp() {
     }
 
     when (val state = updateState) {
-        is UpdateUiState.Available -> AlertDialog(
-            onDismissRequest = updateViewModel::dismissUpdate,
-            title = { Text(stringResource(R.string.update_found_title)) },
-            text = {
-                Column {
-                    Text(state.release.displayName)
-                    if (state.release.notes.isNotBlank()) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(state.release.notes.take(600))
+        is UpdateUiState.Available -> {
+            var snoozeForWeek by remember(state.release.tagName) {
+                mutableStateOf(false)
+            }
+            AlertDialog(
+                onDismissRequest = { updateViewModel.dismissUpdate(snoozeForWeek) },
+                title = { Text(stringResource(R.string.update_found_title)) },
+                text = {
+                    Column {
+                        Text(state.release.displayName)
+                        if (state.release.notes.isNotBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(state.release.notes.take(600))
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp)
+                                .clickable { snoozeForWeek = !snoozeForWeek },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = snoozeForWeek,
+                                onCheckedChange = { snoozeForWeek = it },
+                            )
+                            Text(stringResource(R.string.update_snooze_week))
+                        }
                     }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { startUpdate(state.release) }) {
-                    Text(stringResource(R.string.update_download))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = updateViewModel::dismissUpdate) {
-                    Text(stringResource(R.string.update_later))
-                }
-            },
-        )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (snoozeForWeek) updateViewModel.snoozeUpdatesForWeek()
+                            startUpdate(state.release)
+                        },
+                    ) {
+                        Text(stringResource(R.string.update_download))
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { updateViewModel.dismissUpdate(snoozeForWeek) },
+                    ) {
+                        Text(stringResource(R.string.update_later))
+                    }
+                },
+            )
+        }
 
         is UpdateUiState.Downloading -> AlertDialog(
             onDismissRequest = {},
@@ -241,7 +268,7 @@ fun PitcheeApp() {
                     updateState = updateState,
                     autoCheckUpdates = autoCheckUpdates,
                     onAutoCheckChange = updateViewModel::setAutoCheck,
-                    onCheckUpdates = updateViewModel::checkForUpdates,
+                    onCheckUpdates = { updateViewModel.checkForUpdates(manual = true) },
                 )
                 PitcheeDestination.SCORE_RULES -> ScoreRulesPage(
                     result = remember { demoRuleResult() },

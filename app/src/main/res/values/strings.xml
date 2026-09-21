@@ -24,6 +24,7 @@
     <string name="update_download_failed">更新下载失败</string>
     <string name="update_download">下载更新</string>
     <string name="update_later">稍后</string>
+    <string name="update_snooze_week">一周内别烦我。</string>
     <string name="update_downloading_title">正在下载更新</string>
     <string name="recording_again">重新录音</string>
     <string name="history_detail_loading">正在打开历史分析</string>
@@ -64,19 +65,15 @@
     <string name="nav_settings">设置</string>
     <string name="nav_score_test">规则</string>
 
-    <string name="pitch_summary_title">本次基频监测</string>
-    <string name="pitch_summary_average">整段平均 F0</string>
-    <string name="pitch_summary_samples">有效 F0 样本 %1$d 个</string>
-    <string name="pitch_summary_ratio_note">按 165 Hz 分界统计</string>
-    <string name="pitch_summary_ratio">男女声区间比例</string>
-    <string name="pitch_summary_male">男声区间</string>
-    <string name="pitch_summary_female">女声区间</string>
-    <string name="pitch_summary_back">返回基频</string>
     <string name="pitch_title">基频</string>
     <string name="pitch_subtitle">注：165Hz是男女分界的标准</string>
     <string name="pitch_no_voice">等待稳定音高</string>
     <string name="pitch_current_f0">当前基频</string>
     <string name="pitch_preparing">正在准备Swift-F0</string>
+    <string name="pitch_rewind_3">后退 3 秒</string>
+    <string name="pitch_rewind_seconds">回退 %1$.0f 秒</string>
+    <string name="pitch_last_page">最后一页</string>
+    <string name="pitch_resume_analysis">恢复分析</string>
     <string name="pitch_start_monitoring">开始实时监测</string>
     <string name="pitch_stop_monitoring">停止监测</string>
     <string name="spectrum_title">频谱</string>

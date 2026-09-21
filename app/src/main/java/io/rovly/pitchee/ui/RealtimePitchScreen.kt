@@ -4,8 +4,15 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
@@ -14,18 +21,23 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,21 +51,34 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.rovly.pitchee.R
+import java.text.BreakIterator
+import java.util.Locale
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 
 @Composable
 internal fun RealtimePitchScreen() {
@@ -63,7 +88,33 @@ internal fun RealtimePitchScreen() {
     val viewModel: PitchViewModel = viewModel(factory = factory)
     val state by viewModel.state.collectAsStateWithLifecycle()
     var permissionDenied by remember { mutableStateOf(false) }
-    var sessionSummary by remember { mutableStateOf<PitchSessionSummary?>(null) }
+    var transientRewindMessage by remember { mutableStateOf<String?>(null) }
+    val lastPageMessage = stringResource(R.string.pitch_last_page)
+    val rewindMessageFormat = stringResource(R.string.pitch_rewind_seconds)
+    val replayTailEndSeconds = state.replayTailEndSeconds
+    val playbackPositionSeconds = state.playbackPositionSeconds
+    val rewindWindowMessage = if (
+        state.replaying &&
+        replayTailEndSeconds != null &&
+        playbackPositionSeconds != null
+    ) {
+        rewindMessageFormat.format(
+            (replayTailEndSeconds - playbackPositionSeconds).coerceAtLeast(0.0),
+        )
+    } else {
+        null
+    }
+    val rewindStatus = transientRewindMessage ?: rewindWindowMessage
+
+    LaunchedEffect(state.replaying) {
+        if (!state.replaying) transientRewindMessage = null
+    }
+    LaunchedEffect(transientRewindMessage) {
+        if (transientRewindMessage != null) {
+            delay(1500)
+            transientRewindMessage = null
+        }
+    }
     val passagePreferences = remember(context) { PassagePreferences(context) }
     var selectedPassageIndex by rememberSaveable(passagePreferences.officialIndex()) {
         mutableIntStateOf(passagePreferences.officialIndex())
@@ -77,27 +128,18 @@ internal fun RealtimePitchScreen() {
     }
 
     DisposableEffect(Unit) {
-        onDispose { viewModel.stop() }
-    }
-
-    sessionSummary?.let { summary ->
-        PitchSessionSummaryScreen(
-            summary = summary,
-            onBack = {
-                sessionSummary = null
-                viewModel.clearDisplay()
-            },
-        )
-        return
+        onDispose { viewModel.finishSession() }
     }
 
     fun toggleMonitoring() {
-        if (state.running) {
-            sessionSummary = viewModel.finishSession()
+        transientRewindMessage = null
+        if (state.replaying) {
+            viewModel.resumeAnalysis()
             return
         }
-        if (state.preparing) {
-            viewModel.stop()
+        if (state.running || state.preparing) {
+            viewModel.finishSession()
+            viewModel.clearDisplay()
             return
         }
         val granted = ContextCompat.checkSelfPermission(
@@ -112,9 +154,16 @@ internal fun RealtimePitchScreen() {
         }
     }
 
+    fun rewind() {
+        val feedback = viewModel.rewindFiveSeconds() ?: return
+        transientRewindMessage = if (feedback.isLastPage) lastPageMessage else null
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         PitchChart(
             points = state.points,
+            replayWindowEndSeconds = state.replayWindowEndSeconds,
+            playbackPositionSeconds = state.playbackPositionSeconds,
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -185,6 +234,17 @@ internal fun RealtimePitchScreen() {
                     textAlign = TextAlign.Center,
                 )
             }
+            rewindStatus?.let { message ->
+                Text(
+                    text = message,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.End,
+                )
+            }
             if (state.preparing) {
                 Text(
                     text = stringResource(R.string.pitch_preparing),
@@ -194,56 +254,339 @@ internal fun RealtimePitchScreen() {
                 )
                 Spacer(Modifier.height(10.dp))
             }
+            val showToolbar = state.running || state.preparing || state.replaying
             val passage = passagePreferences.activePassage(languageCode, selectedPassageIndex)
-            val pages = remember(passage.text(languageCode)) { passage.pages(languageCode) }
-            var pageIndex by rememberSaveable(passage.text(languageCode)) { mutableIntStateOf(0) }
-            val pageText = pages[pageIndex.coerceIn(pages.indices)]
+            val passageText = passage.text(languageCode)
+            val passageStyle = MaterialTheme.typography.bodyMedium
+            val textMeasurer = rememberTextMeasurer(cacheSize = 8)
+            val density = LocalDensity.current
+            val locale = LocalConfiguration.current.locales[0]
+            var passageWidthPx by remember { mutableIntStateOf(0) }
+            var passageHeightPx by remember { mutableIntStateOf(0) }
+            var fullPassageWidthPx by remember { mutableIntStateOf(0) }
+            val toolbarDeltaPx = with(density) { 42.dp.roundToPx() }
+            val compactPassageWidthPx = (
+                fullPassageWidthPx - toolbarDeltaPx
+                ).coerceAtLeast(1)
+            val expansionProgress = if (
+                fullPassageWidthPx > 0 && toolbarDeltaPx > 0
+            ) {
+                ((fullPassageWidthPx - passageWidthPx).toFloat() / toolbarDeltaPx)
+                    .coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+            val fullPages = remember(
+                passageText,
+                fullPassageWidthPx,
+                passageHeightPx,
+                passageStyle,
+                locale,
+            ) {
+                adaptivePassagePages(
+                    text = passageText,
+                    measurer = textMeasurer,
+                    style = passageStyle,
+                    widthPx = fullPassageWidthPx,
+                    heightPx = passageHeightPx,
+                    locale = locale,
+                    wordAware = true,
+                )
+            }
+            val compactPages = remember(
+                passageText,
+                compactPassageWidthPx,
+                passageHeightPx,
+                passageStyle,
+                locale,
+            ) {
+                adaptivePassagePages(
+                    text = passageText,
+                    measurer = textMeasurer,
+                    style = passageStyle,
+                    widthPx = compactPassageWidthPx,
+                    heightPx = passageHeightPx,
+                    locale = locale,
+                    wordAware = true,
+                )
+            }
+            val pages = remember(
+                passageText,
+                passageWidthPx,
+                passageHeightPx,
+                expansionProgress,
+                fullPages,
+                compactPages,
+                passageStyle,
+                locale,
+            ) {
+                transitionPassagePages(
+                    text = passageText,
+                    measurer = textMeasurer,
+                    style = passageStyle,
+                    widthPx = passageWidthPx,
+                    heightPx = passageHeightPx,
+                    locale = locale,
+                    fullPages = fullPages,
+                    compactPages = compactPages,
+                    progress = expansionProgress,
+                )
+            }
+            var pageIndex by rememberSaveable(passageText) { mutableIntStateOf(0) }
+            val currentPageIndex = pageIndex.coerceIn(pages.indices)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(72.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = pageText,
+                Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable(
-                            enabled = pages.size > 1,
-                            onClickLabel = stringResource(R.string.next_page),
-                        ) {
-                            pageIndex = (pageIndex + 1) % pages.size
+                        .fillMaxHeight()
+                        .onSizeChanged { size ->
+                            passageWidthPx = size.width
+                            passageHeightPx = size.height
+                            if (!showToolbar) {
+                                fullPassageWidthPx = size.width
+                            }
                         },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.size(8.dp))
-                FilledIconButton(
-                    onClick = ::toggleMonitoring,
-                    modifier = Modifier.size(72.dp),
                 ) {
-                    if (state.preparing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(28.dp),
-                            strokeWidth = 3.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                enabled = pages.size > 1,
+                                onClickLabel = stringResource(R.string.next_page),
+                            ) {
+                                pageIndex = (currentPageIndex + 1) % pages.size
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = pages[currentPageIndex],
+                            modifier = Modifier.fillMaxWidth(),
+                            style = passageStyle,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = PASSAGE_MAX_LINES,
+                            overflow = TextOverflow.Ellipsis,
                         )
-                    } else {
-                        Icon(
-                            painter = painterResource(
-                                if (state.running) R.drawable.ic_pause else R.drawable.ic_play,
+                    }
+                }
+                Spacer(Modifier.size(8.dp))
+                PitchMonitorControls(
+                    running = state.running,
+                    preparing = state.preparing,
+                    replaying = state.replaying,
+                    onToggle = ::toggleMonitoring,
+                    onRewind = ::rewind,
+                )
+            }
+        }
+    }
+}
+
+private fun transitionPassagePages(
+    text: String,
+    measurer: TextMeasurer,
+    style: TextStyle,
+    widthPx: Int,
+    heightPx: Int,
+    locale: Locale,
+    fullPages: List<String>,
+    compactPages: List<String>,
+    progress: Float,
+): List<String> {
+    if (fullPages.isEmpty() || compactPages.isEmpty()) {
+        return adaptivePassagePages(
+            text = text,
+            measurer = measurer,
+            style = style,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            locale = locale,
+            wordAware = true,
+        )
+    }
+    if (progress <= 0.001f) {
+        return adaptivePassagePages(
+            text = text,
+            measurer = measurer,
+            style = style,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            locale = locale,
+            wordAware = true,
+        )
+    }
+    if (progress >= 0.999f) return compactPages
+
+    val from = fullPages.first().length
+    val to = compactPages.first().length
+    val characterCut = (from + (to - from) * progress)
+        .roundToInt()
+        .coerceIn(1, text.length)
+    val firstPage = text.substring(0, characterCut).trimEnd()
+    val remaining = text.substring(characterCut).trimStart()
+    val remainingPages = adaptivePassagePages(
+        text = remaining,
+        measurer = measurer,
+        style = style,
+        widthPx = widthPx,
+        heightPx = heightPx,
+        locale = locale,
+        wordAware = true,
+    )
+    return if (remaining.isEmpty()) listOf(firstPage) else listOf(firstPage) + remainingPages
+}
+
+private fun wordBoundaryBefore(
+    text: String,
+    end: Int,
+    locale: Locale,
+): Int {
+    if (end <= 0) return 1
+    if (end >= text.length) return text.length
+    val iterator = BreakIterator.getWordInstance(locale)
+    iterator.setText(text)
+    if (iterator.isBoundary(end)) return end
+    val boundary = iterator.preceding(end)
+    return boundary.coerceAtLeast(1)
+}
+
+@Composable
+private fun PitchMonitorControls(
+    running: Boolean,
+    preparing: Boolean,
+    replaying: Boolean,
+    onToggle: () -> Unit,
+    onRewind: () -> Unit,
+) {
+    val showToolbar = running || preparing || replaying
+    var toolbarExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(showToolbar) {
+        if (showToolbar) {
+            toolbarExpanded = false
+            delay(110)
+            toolbarExpanded = true
+        } else {
+            toolbarExpanded = false
+        }
+    }
+
+    val controlWidth by animateDpAsState(
+        targetValue = if (toolbarExpanded) 114.dp else 72.dp,
+        animationSpec = spring(dampingRatio = 0.92f, stiffness = 520f),
+        label = "pitch-controls-width",
+    )
+    val controlHeight by animateDpAsState(
+        targetValue = if (toolbarExpanded) 60.dp else 72.dp,
+        animationSpec = spring(dampingRatio = 0.92f, stiffness = 520f),
+        label = "pitch-controls-height",
+    )
+    val controlPadding by animateDpAsState(
+        targetValue = if (toolbarExpanded) 6.dp else 12.dp,
+        animationSpec = spring(dampingRatio = 0.92f, stiffness = 520f),
+        label = "pitch-controls-padding",
+    )
+    val containerColor by animateColorAsState(
+        targetValue = if (toolbarExpanded) {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        } else {
+            MaterialTheme.colorScheme.primary
+        },
+        animationSpec = spring(dampingRatio = 0.78f, stiffness = 280f),
+        label = "pitch-controls-color",
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (toolbarExpanded) {
+            MaterialTheme.colorScheme.onSurface
+        } else {
+            MaterialTheme.colorScheme.onPrimary
+        },
+        animationSpec = spring(dampingRatio = 0.78f, stiffness = 280f),
+        label = "pitch-controls-content",
+    )
+
+    Surface(
+        modifier = Modifier
+            .width(controlWidth)
+            .height(controlHeight),
+        shape = CircleShape,
+        color = containerColor,
+        contentColor = contentColor,
+        tonalElevation = 3.dp,
+        shadowElevation = 5.dp,
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (showToolbar) {
+                PitchRewindButton(
+                    onClick = onRewind,
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = controlPadding),
+                )
+            }
+
+            AnimatedContent(
+                targetState = when {
+                    preparing -> null
+                    running -> R.drawable.ic_pause
+                    else -> R.drawable.ic_play
+                },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = controlPadding)
+                    .size(48.dp)
+                    .zIndex(1f),
+                transitionSpec = {
+                    scaleIn(
+                        spring(dampingRatio = 0.72f, stiffness = 360f),
+                        initialScale = 0.68f,
+                    ) togetherWith scaleOut(
+                        spring(dampingRatio = 0.72f, stiffness = 360f),
+                        targetScale = 0.68f,
+                    )
+                },
+                label = "pitch-center-icon",
+            ) { icon ->
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    tonalElevation = 3.dp,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                enabled = !preparing,
+                                onClick = onToggle,
                             ),
-                            contentDescription = stringResource(
-                                if (state.running) {
-                                    R.string.pitch_stop_monitoring
-                                } else {
-                                    R.string.pitch_start_monitoring
-                                },
-                            ),
-                            modifier = Modifier.size(30.dp),
-                        )
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (icon == null) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.5.dp,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        } else {
+                            Icon(
+                                painter = painterResource(icon),
+                                contentDescription = stringResource(
+                                    when {
+                                        running -> R.string.pitch_stop_monitoring
+                                        replaying -> R.string.pitch_resume_analysis
+                                        else -> R.string.pitch_start_monitoring
+                                    },
+                                ),
+                                modifier = Modifier.size(30.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -252,8 +595,50 @@ internal fun RealtimePitchScreen() {
 }
 
 @Composable
+private fun PitchRewindButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var spinCount by remember { mutableIntStateOf(0) }
+    val rotation by animateFloatAsState(
+        targetValue = spinCount * -360f,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 260f),
+        label = "pitch-rewind-rotation",
+    )
+    FilledIconButton(
+        onClick = {
+            spinCount++
+            onClick()
+        },
+        modifier = modifier.size(48.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                painter = painterResource(R.drawable.ic_rewind_arrow),
+                contentDescription = stringResource(R.string.pitch_rewind_3),
+                modifier = Modifier
+                    .size(24.dp)
+                    .graphicsLayer { rotationZ = rotation },
+            )
+//            Text(
+//                text = "3",
+//                modifier = Modifier
+//                    .offset(x = 0.5.dp, y = 3.dp)
+//                    .graphicsLayer { rotationZ = rotation },
+//                color = MaterialTheme.colorScheme.onPrimary,
+//                fontSize = 9.sp,
+//                lineHeight = 9.sp,
+//                fontWeight = FontWeight.Bold,
+//            )
+        }
+    }
+}
+
+@Composable
 private fun PitchChart(
     points: List<F0Point>,
+    replayWindowEndSeconds: Double?,
+    playbackPositionSeconds: Double?,
     modifier: Modifier = Modifier,
 ) {
     val lineColor = MaterialTheme.colorScheme.onSurface
@@ -262,8 +647,15 @@ private fun PitchChart(
     val averageColor = MaterialTheme.colorScheme.primary
     val feminineColor = Color(0xFFFFB6C1)
     val masculineColor = Color(0xFF6495ED)
-    val latestTimestamp = points.lastOrNull()?.timestampSeconds ?: 0.0
-    val firstTimestamp = latestTimestamp - WINDOW_SECONDS
+    val windowSeconds = if (replayWindowEndSeconds != null) {
+        REPLAY_WINDOW_SECONDS
+    } else {
+        WINDOW_SECONDS
+    }
+    val latestTimestamp = replayWindowEndSeconds
+        ?: points.lastOrNull()?.timestampSeconds
+        ?: 0.0
+    val firstTimestamp = latestTimestamp - windowSeconds
     val averageF0 = points.asSequence()
         .filter { it.timestampSeconds >= firstTimestamp }
         .mapNotNull { it.f0Hz }
@@ -349,7 +741,7 @@ private fun PitchChart(
             voiced.forEach { point ->
                 val hz = point.f0Hz ?: return@forEach
                 val x = (plotLeftPx + (
-                    (point.timestampSeconds - firstTimestamp) / WINDOW_SECONDS
+                    (point.timestampSeconds - firstTimestamp) / windowSeconds
                     ).toFloat().coerceIn(0f, 1f) * (size.width - plotLeftPx))
                 if (currentSegment.isNotEmpty() &&
                     point.timestampSeconds - previousTime > MAX_GAP_SECONDS
@@ -394,6 +786,18 @@ private fun PitchChart(
                     drawCircle(lineColor, radius = 1.6.dp.toPx(), center = point)
                 }
             }
+
+            playbackPositionSeconds?.let { positionSeconds ->
+                val x = (
+                    (positionSeconds - firstTimestamp) / windowSeconds
+                    ).toFloat().coerceIn(0f, 1f) * size.width
+                drawLine(
+                    color = averageColor,
+                    start = Offset(x, plotTopPx),
+                    end = Offset(x, size.height),
+                    strokeWidth = 2.dp.toPx(),
+                )
+            }
         }
 
         listOf(400f, 230f, 165f, 100f, 60f).forEach { hz ->
@@ -426,4 +830,5 @@ private fun PitchChart(
 private const val MIN_HZ = 60f
 private const val MAX_HZ = 400f
 private const val WINDOW_SECONDS = 3.0
+private const val REPLAY_WINDOW_SECONDS = 3.0
 private const val MAX_GAP_SECONDS = 0.25

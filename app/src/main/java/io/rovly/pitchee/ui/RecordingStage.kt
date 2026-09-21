@@ -41,12 +41,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -322,32 +324,56 @@ internal fun RecordingStage(
 @Composable
 private fun ReadingPassageText(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val languageCode = LocalConfiguration.current.locales[0].language
+    val configuration = LocalConfiguration.current
+    val languageCode = configuration.locales[0].language
     val preferences = remember(context) { PassagePreferences(context) }
     var selectedIndex by rememberSaveable(preferences.officialIndex()) {
         mutableIntStateOf(preferences.officialIndex())
     }
     val passage = preferences.activePassage(languageCode, selectedIndex)
-    val pages = remember(passage.text(languageCode)) { passage.pages(languageCode) }
-    var pageIndex by rememberSaveable(passage.text(languageCode)) { mutableIntStateOf(0) }
-    val pageText = pages[pageIndex.coerceIn(pages.indices)]
+    val passageText = passage.text(languageCode)
+    val passageStyle = MaterialTheme.typography.bodyMedium
+    val textMeasurer = rememberTextMeasurer(cacheSize = 4)
+    var widthPx by remember { mutableIntStateOf(0) }
+    var heightPx by remember { mutableIntStateOf(0) }
+    val pages = remember(passageText, widthPx, heightPx, passageStyle, configuration.locales) {
+        adaptivePassagePages(
+            text = passageText,
+            measurer = textMeasurer,
+            style = passageStyle,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            locale = configuration.locales[0],
+            wordAware = true,
+        )
+    }
+    var pageIndex by rememberSaveable(passageText) { mutableIntStateOf(0) }
+    val currentPageIndex = pageIndex.coerceIn(pages.indices)
+
     Box(
         modifier = modifier
             .padding(bottom = 6.dp)
             .height(72.dp)
+            .onSizeChanged {
+                widthPx = it.width
+                heightPx = it.height
+            }
             .clickable(
                 enabled = pages.size > 1,
                 onClickLabel = stringResource(R.string.next_page),
             ) {
-                pageIndex = (pageIndex + 1) % pages.size
+                pageIndex = (currentPageIndex + 1) % pages.size
             },
-        contentAlignment = Alignment.CenterStart,
+        contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = pageText,
-            style = MaterialTheme.typography.bodyMedium,
+            text = pages[currentPageIndex],
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.Center),
+            style = passageStyle,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 3,
+            maxLines = PASSAGE_MAX_LINES,
             overflow = TextOverflow.Ellipsis,
         )
     }

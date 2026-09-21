@@ -52,11 +52,19 @@ class UpdateViewModel(
     val autoCheck: StateFlow<Boolean> = mutableAutoCheck.asStateFlow()
 
     fun checkOnLaunch() {
-        if (mutableAutoCheck.value) checkForUpdates(manual = false)
+        if (!mutableAutoCheck.value || isSnoozedForWeek()) {
+            mutableState.value = UpdateUiState.Idle
+            return
+        }
+        checkForUpdates(manual = false)
     }
 
     fun checkForUpdates(manual: Boolean = true) {
         if (!manual && !mutableAutoCheck.value) return
+        if (!manual && isSnoozedForWeek()) {
+            mutableState.value = UpdateUiState.Idle
+            return
+        }
         if (mutableState.value is UpdateUiState.Checking ||
             mutableState.value is UpdateUiState.Downloading
         ) {
@@ -71,7 +79,7 @@ class UpdateViewModel(
                 onSuccess = { release ->
                     when {
                         release == null -> UpdateUiState.UpToDate
-                        !manual && release.tagName == notifiedReleaseTag() -> UpdateUiState.UpToDate
+                        !manual && release.tagName == notifiedReleaseTag() -> UpdateUiState.Idle
                         else -> {
                             if (!manual) {
                                 preferences.edit()
@@ -94,10 +102,22 @@ class UpdateViewModel(
         preferences.edit().putBoolean(KEY_AUTO_CHECK, enabled).apply()
     }
 
-    fun dismissUpdate() {
+    fun dismissUpdate(snoozeForWeek: Boolean = false) {
         val release = (mutableState.value as? UpdateUiState.Available)?.release ?: return
-        preferences.edit().putString(KEY_NOTIFIED_RELEASE, release.tagName).apply()
+        preferences.edit()
+            .putString(KEY_NOTIFIED_RELEASE, release.tagName)
+            .apply()
+        if (snoozeForWeek) snoozeUpdatesForWeek()
         mutableState.value = UpdateUiState.Idle
+    }
+
+    fun snoozeUpdatesForWeek() {
+        preferences.edit()
+            .putLong(
+                KEY_SNOOZE_UNTIL,
+                System.currentTimeMillis() + SNOOZE_DURATION_MILLIS,
+            )
+            .apply()
     }
 
     fun hideUpdate() {
@@ -130,6 +150,13 @@ class UpdateViewModel(
 
     private fun notifiedReleaseTag(): String? =
         preferences.getString(KEY_NOTIFIED_RELEASE, null)
+
+    private fun isSnoozedForWeek(): Boolean {
+        val until = preferences.getLong(KEY_SNOOZE_UNTIL, 0L)
+        if (until > System.currentTimeMillis()) return true
+        if (until > 0L) preferences.edit().remove(KEY_SNOOZE_UNTIL).apply()
+        return false
+    }
 
     private suspend fun downloadApk(release: GitHubRelease): File = withContext(Dispatchers.IO) {
         val directory = File(appContext.cacheDir, UPDATE_DIRECTORY).apply {
@@ -185,6 +212,8 @@ class UpdateViewModel(
         private const val UPDATE_PREFERENCES = "update_preferences"
         private const val KEY_AUTO_CHECK = "auto_check"
         private const val KEY_NOTIFIED_RELEASE = "notified_release"
+        private const val KEY_SNOOZE_UNTIL = "snooze_until"
+        private const val SNOOZE_DURATION_MILLIS = 7L * 24L * 60L * 60L * 1000L
         private const val UPDATE_DIRECTORY = "updates"
 
         fun factory(context: Context): ViewModelProvider.Factory = viewModelFactory {

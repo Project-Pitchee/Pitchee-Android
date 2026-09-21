@@ -11,7 +11,7 @@ class ReadingPassagesTest {
         assertEquals(11, readingPassages.size)
         assertTrue(readingPassages.all { it.titleZh.isNotBlank() && it.titleEn.isNotBlank() })
         assertTrue(readingPassages.all { it.textZh.isNotBlank() && it.textEn.isNotBlank() })
-        assertTrue(readingPassages.any { it.pages("zh").size > 1 })
-        assertTrue(readingPassages.any { it.pages("en").size > 1 })
+        assertTrue(readingPassages.any { it.textZh.length > 30 })
+        assertTrue(readingPassages.any { it.textEn.length > 90 })
     }
 }

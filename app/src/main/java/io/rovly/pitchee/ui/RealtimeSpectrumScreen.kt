@@ -7,21 +7,21 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -69,6 +70,8 @@ import io.rovly.pitchee.R
 import kotlin.math.log10
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -79,8 +82,34 @@ internal fun RealtimeSpectrumScreen() {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val lastPageMessage = stringResource(R.string.spectrum_last_page)
     val rewindMessageFormat = stringResource(R.string.spectrum_rewind_seconds)
-    var rewindMessage by remember { mutableStateOf<String?>(null) }
+    var transientRewindMessage by remember { mutableStateOf<String?>(null) }
     var permissionDenied by remember { mutableStateOf(false) }
+    val replayTailEndSeconds = state.replayTailEndSeconds
+    val playbackPositionSeconds = state.playbackPositionSeconds
+    val rewindWindowMessage = if (
+        state.mode == SpectrumMode.REPLAYING &&
+        replayTailEndSeconds != null &&
+        playbackPositionSeconds != null
+    ) {
+        rewindMessageFormat.format(
+            (replayTailEndSeconds - playbackPositionSeconds).coerceAtLeast(0.0),
+        )
+    } else {
+        null
+    }
+    val rewindStatus = transientRewindMessage ?: rewindWindowMessage
+
+    LaunchedEffect(state.mode) {
+        if (state.mode != SpectrumMode.REPLAYING) {
+            transientRewindMessage = null
+        }
+    }
+    LaunchedEffect(transientRewindMessage) {
+        if (transientRewindMessage != null) {
+            delay(1500)
+            transientRewindMessage = null
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -94,7 +123,7 @@ internal fun RealtimeSpectrumScreen() {
     }
 
     fun toggleAnalysis() {
-        rewindMessage = null
+        transientRewindMessage = null
         if (state.mode == SpectrumMode.IDLE) {
             val granted = ContextCompat.checkSelfPermission(
                 context,
@@ -113,11 +142,7 @@ internal fun RealtimeSpectrumScreen() {
 
     fun rewind() {
         val feedback = viewModel.rewindFiveSeconds() ?: return
-        rewindMessage = if (feedback.isLastPage) {
-            lastPageMessage
-        } else {
-            rewindMessageFormat.format(feedback.secondsFromLatest)
-        }
+        transientRewindMessage = if (feedback.isLastPage) lastPageMessage else null
     }
 
     Box(
@@ -169,7 +194,7 @@ internal fun RealtimeSpectrumScreen() {
                 .padding(horizontal = 20.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.End,
         ) {
-            rewindMessage?.let { message ->
+            rewindStatus?.let { message ->
                 Text(
                     text = message,
                     modifier = Modifier.padding(bottom = 10.dp),
@@ -213,8 +238,34 @@ private fun SpectrumControls(
     onRewind: () -> Unit,
 ) {
     val showToolbar = mode != SpectrumMode.IDLE
+    var toolbarExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(showToolbar) {
+        if (showToolbar) {
+            toolbarExpanded = false
+            delay(110)
+            toolbarExpanded = true
+        } else {
+            toolbarExpanded = false
+        }
+    }
+
+    val controlWidth by animateDpAsState(
+        targetValue = if (toolbarExpanded) 114.dp else 72.dp,
+        animationSpec = spring(dampingRatio = 0.78f, stiffness = 280f),
+        label = "spectrum-controls-width",
+    )
+    val controlHeight by animateDpAsState(
+        targetValue = if (toolbarExpanded) 60.dp else 72.dp,
+        animationSpec = spring(dampingRatio = 0.78f, stiffness = 280f),
+        label = "spectrum-controls-height",
+    )
+    val controlPadding by animateDpAsState(
+        targetValue = if (toolbarExpanded) 6.dp else 12.dp,
+        animationSpec = spring(dampingRatio = 0.78f, stiffness = 280f),
+        label = "spectrum-controls-padding",
+    )
     val containerColor by animateColorAsState(
-        targetValue = if (showToolbar) {
+        targetValue = if (toolbarExpanded) {
             MaterialTheme.colorScheme.surfaceContainerHigh
         } else {
             MaterialTheme.colorScheme.primary
@@ -223,7 +274,7 @@ private fun SpectrumControls(
         label = "spectrum-controls-color",
     )
     val contentColor by animateColorAsState(
-        targetValue = if (showToolbar) {
+        targetValue = if (toolbarExpanded) {
             MaterialTheme.colorScheme.onSurface
         } else {
             MaterialTheme.colorScheme.onPrimary
@@ -231,105 +282,94 @@ private fun SpectrumControls(
         animationSpec = spring(dampingRatio = 0.78f, stiffness = 280f),
         label = "spectrum-controls-content",
     )
+    val resumeAnalysis = mode == SpectrumMode.REPLAYING ||
+        mode == SpectrumMode.ANALYSIS_PAUSED
 
     Surface(
-        modifier = Modifier.animateContentSize(
-            animationSpec = spring(dampingRatio = 0.78f, stiffness = 280f),
-        ),
+        modifier = Modifier
+            .width(controlWidth)
+            .height(controlHeight),
         shape = CircleShape,
         color = containerColor,
         contentColor = contentColor,
         tonalElevation = 3.dp,
         shadowElevation = 5.dp,
     ) {
-        AnimatedContent(
-            targetState = showToolbar,
-            transitionSpec = {
-                val animation = spring<Float>(dampingRatio = 0.78f, stiffness = 320f)
-                scaleIn(animation, initialScale = 0.72f) togetherWith
-                    scaleOut(animation, targetScale = 0.72f)
-            },
-            label = "spectrum-controls",
-        ) { expanded ->
-            if (expanded) {
-                SpectrumToolbarContent(
-                    mode = mode,
-                    onToggle = onToggle,
-                    onRewind = onRewind,
-                )
-            } else {
-                Box(
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (showToolbar) {
+                ControlIconButton(
+                    iconRes = R.drawable.ic_rewind_arrow,
+                    contentDescription = stringResource(R.string.spectrum_rewind_5),
+                    onClick = onRewind,
+                    animateOnClick = true,
                     modifier = Modifier
-                        .size(72.dp)
-                        .clickable(onClick = onToggle),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_play),
-                        contentDescription = stringResource(R.string.spectrum_start_monitoring),
-                        modifier = Modifier.size(30.dp),
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SpectrumToolbarContent(
-    mode: SpectrumMode,
-    onToggle: () -> Unit,
-    onRewind: () -> Unit,
-) {
-    val resumeAnalysis = mode == SpectrumMode.REPLAYING ||
-        mode == SpectrumMode.ANALYSIS_PAUSED
-    val centerIcon = if (resumeAnalysis) R.drawable.ic_play else R.drawable.ic_pause
-    Row(
-        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ControlIconButton(
-            iconRes = R.drawable.ic_rewind,
-            contentDescription = stringResource(R.string.spectrum_rewind_5),
-            onClick = onRewind,
-            animateOnClick = true,
-        )
-        AnimatedContent(
-            targetState = if (mode == SpectrumMode.PREPARING) null else centerIcon,
-            transitionSpec = {
-                scaleIn(
-                    spring(dampingRatio = 0.72f, stiffness = 360f),
-                    initialScale = 0.68f,
-                ) togetherWith scaleOut(
-                    spring(dampingRatio = 0.72f, stiffness = 360f),
-                    targetScale = 0.68f,
+                        .align(Alignment.CenterStart)
+                        .padding(start = controlPadding),
                 )
-            },
-            label = "spectrum-center-icon",
-        ) { icon ->
-            FilledIconButton(
-                onClick = onToggle,
-                enabled = mode != SpectrumMode.PREPARING,
-                modifier = Modifier.size(48.dp),
-            ) {
-                if (icon == null) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        strokeWidth = 2.5.dp,
-                        color = MaterialTheme.colorScheme.onPrimary,
+            }
+
+            AnimatedContent(
+                targetState = when {
+                    mode == SpectrumMode.PREPARING -> null
+                    mode == SpectrumMode.IDLE || resumeAnalysis -> R.drawable.ic_play
+                    else -> R.drawable.ic_pause
+                },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = controlPadding)
+                    .size(48.dp)
+                    .zIndex(1f),
+                transitionSpec = {
+                    scaleIn(
+                        spring(dampingRatio = 0.72f, stiffness = 360f),
+                        initialScale = 0.68f,
+                    ) togetherWith scaleOut(
+                        spring(dampingRatio = 0.72f, stiffness = 360f),
+                        targetScale = 0.68f,
                     )
-                } else {
-                    Icon(
-                        painter = painterResource(icon),
-                        contentDescription = stringResource(
-                            if (resumeAnalysis) {
-                                R.string.spectrum_resume_analysis
-                            } else {
-                                R.string.spectrum_pause
-                            },
-                        ),
-                    )
+                },
+                label = "spectrum-center-icon",
+            ) { icon ->
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    tonalElevation = 3.dp,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                enabled = mode != SpectrumMode.PREPARING,
+                                onClick = onToggle,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (icon == null) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.5.dp,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        } else {
+                            Icon(
+                                painter = painterResource(icon),
+                                contentDescription = stringResource(
+                                    when {
+                                        mode == SpectrumMode.IDLE ->
+                                            R.string.spectrum_start_monitoring
+                                        resumeAnalysis ->
+                                            R.string.spectrum_resume_analysis
+                                        else -> R.string.spectrum_pause
+                                    },
+                                ),
+                                modifier = Modifier.size(30.dp),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -342,6 +382,7 @@ private fun ControlIconButton(
     contentDescription: String,
     onClick: () -> Unit,
     animateOnClick: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     var spinCount by remember { mutableIntStateOf(0) }
     val rotation by animateFloatAsState(
@@ -354,7 +395,7 @@ private fun ControlIconButton(
             if (animateOnClick) spinCount++
             onClick()
         },
-        modifier = Modifier.size(48.dp),
+        modifier = modifier.size(48.dp),
     ) {
         Icon(
             painter = painterResource(iconRes),
@@ -398,11 +439,30 @@ private fun SpectrumChart(
     }
     val windowEnd = windowEndAnimation.value.toDouble()
     val windowStart = windowEnd - SPECTRUM_WINDOW_SECONDS
+    val darkTheme = isSystemInDarkTheme()
+    val palette = remember(darkTheme) { spectrumPalette(darkTheme) }
+    val colorLut = remember(palette) { spectrumColorLut(palette) }
+    val renderChannel = remember { Channel<SpectrumRenderRequest>(Channel.CONFLATED) }
     var image by remember { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(frames, windowStart, windowEnd) {
-        image = withContext(Dispatchers.Default) {
-            createSpectrumBitmap(frames, windowStart, windowEnd)
+    LaunchedEffect(renderChannel) {
+        for (request in renderChannel) {
+            val nextImage = withContext(Dispatchers.Default) {
+                createSpectrumBitmap(
+                    request.frames,
+                    request.windowEnd,
+                    request.colorLut,
+                )
+            }
+            if (nextImage != null) {
+                image = nextImage
+            }
         }
+    }
+    LaunchedEffect(frames, windowEnd, colorLut) {
+        renderChannel.trySend(SpectrumRenderRequest(frames, windowEnd, colorLut))
+    }
+    DisposableEffect(renderChannel) {
+        onDispose { renderChannel.close() }
     }
     val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.62f)
     val playheadColor = MaterialTheme.colorScheme.primary
@@ -434,7 +494,7 @@ private fun SpectrumChart(
                     srcSize = IntSize(spectrumImage.width, spectrumImage.height),
                     dstOffset = IntOffset(plotLeftPx.roundToInt(), plotTopPx.roundToInt()),
                     dstSize = IntSize(plotWidthPx.roundToInt(), plotHeightPx.roundToInt()),
-                    filterQuality = FilterQuality.Low,
+                    filterQuality = FilterQuality.High,
                 )
             }
             FREQUENCY_GRID_HZ.forEach { hz ->
@@ -473,48 +533,41 @@ private fun SpectrumChart(
     }
 }
 
+private data class SpectrumRenderRequest(
+    val frames: List<SpectrumFramePoint>,
+    val windowEnd: Double,
+    val colorLut: IntArray,
+)
+
 private fun createSpectrumBitmap(
     frames: List<SpectrumFramePoint>,
-    windowStart: Double,
     windowEnd: Double,
+    colorLut: IntArray,
 ): ImageBitmap? {
-    val visibleFrames = frames.filter {
-        it.timestampSeconds in windowStart..windowEnd
-    }
-    if (visibleFrames.isEmpty()) return null
+    val lastVisibleIndex = upperBoundByTimestamp(frames, windowEnd)
+    if (lastVisibleIndex < 0) return null
+
     val width = SPECTRUM_BITMAP_WIDTH
     val height = SPECTRUM_BITMAP_HEIGHT
-    val pixels = IntArray(width * height)
-    val firstTimestamp = visibleFrames.first().timestampSeconds
-    val lastTimestamp = visibleFrames.last().timestampSeconds
-    val frameSpan = (lastTimestamp - firstTimestamp).coerceAtLeast(0.001)
-    var frameIndex = 0
+    val visibleCount = (lastVisibleIndex + 1).coerceAtMost(width)
+    val firstVisibleIndex = lastVisibleIndex - visibleCount + 1
+    val columnOffset = width - visibleCount
+    val pixels = IntArray(width * height).apply { fill(colorLut[0]) }
+    val bandIndices = IntArray(height) { y ->
+        (y.toFloat() / (height - 1).coerceAtLeast(1) *
+            SpectrumViewModel.SPECTRUM_BAND_COUNT)
+            .roundToInt()
+            .coerceIn(0, SpectrumViewModel.SPECTRUM_BAND_COUNT - 1)
+    }
 
-    for (x in 0 until width) {
-        val timestamp = windowStart + x.toDouble() / (width - 1) * SPECTRUM_WINDOW_SECONDS
-        while (frameIndex < visibleFrames.lastIndex &&
-            visibleFrames[frameIndex + 1].timestampSeconds <= timestamp
-        ) {
-            frameIndex++
-        }
-        val frame = visibleFrames[frameIndex]
-        val hasFrame = timestamp >= firstTimestamp && timestamp <= lastTimestamp
+    for (column in 0 until visibleCount) {
+        val bands = frames[firstVisibleIndex + column].bands
+        val x = columnOffset + column
         for (y in 0 until height) {
-            val bandIndex = if (height <= 1) {
-                0
-            } else {
-                (y.toFloat() / (height - 1) * frame.bands.lastIndex)
-                    .roundToInt()
-                    .coerceIn(0, frame.bands.lastIndex)
-            }
-            val decibels = frame.bands.getOrElse(bandIndex) { SPECTRUM_FLOOR_DB }
+            val decibels = bands[bandIndices[y]]
             val normalized = ((decibels - SPECTRUM_MIN_DB) / SPECTRUM_DB_RANGE)
                 .coerceIn(0f, 1f)
-            pixels[y * width + x] = if (hasFrame) {
-                spectrumColor(normalized).toArgb()
-            } else {
-                SpectrumLow.toArgb()
-            }
+            pixels[y * width + x] = colorLut[(normalized * 255f).roundToInt()]
         }
     }
 
@@ -523,26 +576,85 @@ private fun createSpectrumBitmap(
     return bitmap.asImageBitmap()
 }
 
-private fun spectrumColor(value: Float): Color = when {
-    value < 0.28f -> lerp(SpectrumLow, SpectrumBlue, value / 0.28f)
-    value < 0.50f -> lerp(SpectrumBlue, SpectrumCyan, (value - 0.28f) / 0.22f)
-    value < 0.68f -> lerp(SpectrumCyan, SpectrumPink, (value - 0.50f) / 0.18f)
-    else -> lerp(SpectrumPink, SpectrumHigh, (value - 0.68f) / 0.32f)
+private fun upperBoundByTimestamp(
+    frames: List<SpectrumFramePoint>,
+    timestamp: Double,
+): Int {
+    var low = 0
+    var high = frames.size
+    while (low < high) {
+        val middle = (low + high) ushr 1
+        if (frames[middle].timestampSeconds <= timestamp) {
+            low = middle + 1
+        } else {
+            high = middle
+        }
+    }
+    return low - 1
 }
+
+
+private fun spectrumPalette(darkTheme: Boolean): SpectrumPalette =
+    if (darkTheme) {
+        SpectrumPalette(
+            low = Color(0xFF111827),
+            blue = Color(0xFF2357D8),
+            cyan = Color(0xFF19B9C8),
+            pink = Color(0xFFE75480),
+            high = Color(0xFFFFD9A0),
+        )
+    } else {
+        SpectrumPalette(
+            low = Color(0xFFFFF8F5),
+            blue = Color(0xFF3568D4),
+            cyan = Color(0xFF0FAEC4),
+            pink = Color(0xFFE84A83),
+            high = Color(0xFFD73B22),
+        )
+    }
+
+private fun spectrumColorLut(palette: SpectrumPalette): IntArray =
+    IntArray(256) { index ->
+        spectrumColor(index / 255f, palette).toArgb()
+    }
+
+private fun spectrumColor(
+    value: Float,
+    palette: SpectrumPalette,
+): Color = when {
+    value < 0.28f -> lerp(palette.low, palette.blue, value / 0.28f)
+    value < 0.50f -> lerp(
+        palette.blue,
+        palette.cyan,
+        (value - 0.28f) / 0.22f,
+    )
+    value < 0.68f -> lerp(
+        palette.cyan,
+        palette.pink,
+        (value - 0.50f) / 0.18f,
+    )
+    else -> lerp(
+        palette.pink,
+        palette.high,
+        (value - 0.68f) / 0.32f,
+    )
+}
+
+private data class SpectrumPalette(
+    val low: Color,
+    val blue: Color,
+    val cyan: Color,
+    val pink: Color,
+    val high: Color,
+)
 
 private fun formatFrequencyAxis(hz: Float): String =
     if (hz >= 1000f) "%.0fk".format(hz / 1000f) else "%.0f".format(hz)
 
 private val FREQUENCY_GRID_HZ = listOf(8000f, 4000f, 2000f, 1000f, 500f, 250f, 125f)
-private val SpectrumLow = Color(0xFF111827)
-private val SpectrumBlue = Color(0xFF2357D8)
-private val SpectrumCyan = Color(0xFF19B9C8)
-private val SpectrumPink = Color(0xFFE75480)
-private val SpectrumHigh = Color(0xFFFFD9A0)
 private const val SPECTRUM_WINDOW_SECONDS = 5.0
-private const val SPECTRUM_BITMAP_WIDTH = 128
-private const val SPECTRUM_BITMAP_HEIGHT = 56
-private const val SPECTRUM_FLOOR_DB = -120f
+private const val SPECTRUM_BITMAP_WIDTH = 313
+private const val SPECTRUM_BITMAP_HEIGHT = 256
 private const val SPECTRUM_MIN_DB = -90f
 private const val SPECTRUM_DB_RANGE = 75f
 private const val SPECTRUM_MIN_HZ = 40f

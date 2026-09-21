@@ -55,6 +55,28 @@ class RealtimeF0AudioRecorder(private val context: Context) {
         return count
     }
 
+    fun pause() {
+        val recorder = audioRecord ?: return
+        if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+            runCatching { recorder.stop() }
+        }
+    }
+
+    fun resume() {
+        val recorder = audioRecord
+        if (recorder == null) {
+            start()
+            return
+        }
+        check(recorder.state == AudioRecord.STATE_INITIALIZED) {
+            stop()
+            "实时录音设备已失效"
+        }
+        if (recorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+            recorder.startRecording()
+        }
+    }
+
     fun stop() {
         val recorder = audioRecord ?: return
         audioRecord = null

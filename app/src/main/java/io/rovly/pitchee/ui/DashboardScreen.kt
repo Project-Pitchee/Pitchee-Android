@@ -262,15 +262,15 @@ internal fun DashboardScreen(
                                         Text(stringResource(R.string.dashboard_reset))
                                     }
                                 }
-                                Spacer(Modifier.height(6.dp))
+                                Spacer(Modifier.height(2.dp))
                                 Text(
                                     text = averageF0?.let { "%.0f Hz".format(it) } ?: "--",
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = averageF0?.let { Modifier.offset(x = (-6).dp) } ?: Modifier.offset(x = (-2).dp),
                                     style = MaterialTheme.typography.displayMedium,
                                     fontWeight = FontWeight.Black,
                                     textAlign = TextAlign.Start,
                                 )
-                                Spacer(Modifier.height(2.dp))
+                                Spacer(Modifier.height(6.dp))
                                 Text(
                                     text = when {
                                         f0Sources.isEmpty() -> {
@@ -284,8 +284,8 @@ internal fun DashboardScreen(
                                         }
                                     },
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(start = 1.dp),
+                                        .fillMaxWidth(),
+//                                        .padding(start = 1.dp),
                                     style = MaterialTheme.typography.bodyMedium,
                                     textAlign = TextAlign.Start,
                                 )
