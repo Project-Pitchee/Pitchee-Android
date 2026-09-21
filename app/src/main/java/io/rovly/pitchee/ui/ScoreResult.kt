@@ -758,7 +758,7 @@ private fun scoreTier(
     return when (score.coerceAtLeast(50.0)) {
         in 50.0..<60.0 -> if (languageCode.startsWith("en")) "Fair" else "好"
         in 60.0..<70.0 -> if (languageCode.startsWith("en")) "Good" else "良好"
-        in 70.0..<80.0 -> if (languageCode.startsWith("en")) "Great" else "较好"
+        in 70.0..<80.0 -> if (languageCode.startsWith("en")) "Great" else "很好"
         else -> if (languageCode.startsWith("en")) "Excellent" else "非常好"
     }
 }
