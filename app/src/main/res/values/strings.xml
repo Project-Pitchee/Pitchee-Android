@@ -293,4 +293,22 @@ Final 是最终显示的综合分。</string>
     <string name="dashboard_history_metrics">S %1$.1f   N %2$.1f   %3$s</string>
     <string name="dashboard_f0_value">F0 %1$.0f</string>
     <string name="dashboard_f0_unavailable">F0 --</string>
+    <string name="settings_about">关于</string>
+    <string name="settings_authors">作者</string>
+    <string name="settings_repository">项目仓库</string>
+    <string name="settings_repository_desc">查看 Pitchee Android 的源代码与版本发布</string>
+    <string name="settings_view_repository">打开 GitHub 仓库</string>
+    <string name="settings_open_source">开源引用</string>
+    <string name="settings_open_source_intro">本应用使用以下开源项目：</string>
+    <string name="settings_license_pitchee_core">PitcheeCore（GPL-3.0-only）</string>
+    <string name="settings_license_swift_f0">SwiftF0（MIT）</string>
+    <string name="settings_license_silero_vad">Silero VAD（MIT）</string>
+    <string name="settings_license_speechbrain">SpeechBrain（Apache-2.0）</string>
+    <string name="settings_license_onnxruntime">ONNX Runtime（MIT）</string>
+    <string name="settings_license_androidx">AndroidX / Jetpack Compose（Apache-2.0）</string>
+    <string name="settings_license_markwon">Markwon（Apache-2.0）</string>
+    <string name="settings_repository_url">https://github.com/project-pitchee/Pitchee-Android</string>
+    <string name="settings_pitchee_core_url">https://github.com/project-pitchee/Pitchee-core</string>
+    <string name="settings_author_lvy_url">https://github.com/HaoduyouduDev</string>
+    <string name="settings_author_ryo_url">https://github.com/RyouDYFZ</string>
 </resources>

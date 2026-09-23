@@ -84,4 +84,4 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Pitchee ${{ steps.version.outputs.name }}
           make_latest: true
-          files: app/build/outputs/apk/release/app-release.apk
+          files: app/build/outputs/apk/release/*.apk

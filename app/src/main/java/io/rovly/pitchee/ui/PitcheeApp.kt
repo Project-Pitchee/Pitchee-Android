@@ -1,7 +1,6 @@
 package io.rovly.pitchee.ui
 
 import android.Manifest
-import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -63,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.rovly.pitchee.BuildConfig
 import io.rovly.pitchee.R
 import io.rovly.pitchee.data.FeminineTimeline
 import io.rovly.pitchee.data.PitcheeResult
@@ -123,11 +123,10 @@ fun PitcheeApp() {
             ApkInstaller.requestInstallPermission(context)
         }
     }
-    val debugBuild = remember(context) {
-        (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
-    }
-    val destinations = remember(debugBuild) {
-        PitcheeDestination.entries.filter { it != PitcheeDestination.SCORE_RULES || debugBuild }
+    val destinations = remember {
+        PitcheeDestination.entries.filter {
+            it != PitcheeDestination.SCORE_RULES || BuildConfig.DEBUG
+        }
     }
     val dashboardScrollPosition = remember { DashboardScrollPosition() }
 

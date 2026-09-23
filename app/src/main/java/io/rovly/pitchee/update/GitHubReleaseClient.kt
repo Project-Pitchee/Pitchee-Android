@@ -1,5 +1,6 @@
 package io.rovly.pitchee.update
 
+import android.os.Build
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -24,7 +25,8 @@ class GitHubReleaseClient(
     suspend fun latestUpdate(currentVersionName: String): GitHubRelease? =
         withContext(Dispatchers.IO) {
             fetchReleases().firstOrNull { release ->
-                isNewerVersion(currentVersionName, release.tagName)
+                releaseMatchesChannel(currentVersionName, release) &&
+                    isNewerVersion(currentVersionName, release.tagName)
             }
         }
 
@@ -74,15 +76,40 @@ class GitHubReleaseClient(
     }
 
     private fun JSONArray.firstApkAsset(): String? {
-        for (index in 0 until length()) {
-            val asset = optJSONObject(index) ?: continue
-            val name = asset.optString("name")
-            if (!name.endsWith(".apk", ignoreCase = true)) continue
-            val url = asset.optString("browser_download_url")
-            if (url.isNotBlank()) return url
+        val assets = buildList {
+            for (index in 0 until length()) {
+                val asset = optJSONObject(index) ?: continue
+                val name = asset.optString("name")
+                if (!name.endsWith(".apk", ignoreCase = true)) continue
+                val url = asset.optString("browser_download_url")
+                if (url.isNotBlank()) add(name to url)
+            }
         }
-        return null
+        return selectApkAsset(assets, Build.SUPPORTED_ABIS.toList())
     }
+}
+
+internal fun selectApkAsset(
+    assets: List<Pair<String, String>>,
+    supportedAbis: List<String>,
+): String? {
+    val abiSpecific = assets.firstOrNull { (name, _) ->
+        supportedAbis.any { abi -> name.contains(abi, ignoreCase = true) }
+    }
+    return abiSpecific?.second ?: assets.firstOrNull { (name, _) ->
+        name.contains("universal", ignoreCase = true)
+    }?.second ?: assets.firstOrNull()?.second
+}
+
+internal fun releaseMatchesChannel(
+    currentVersionName: String,
+    release: GitHubRelease,
+): Boolean {
+    val nightlyChannel = currentVersionName
+        .trim()
+        .removePrefix("v")
+        .startsWith(NIGHTLY_PREFIX)
+    return release.isPrerelease == nightlyChannel
 }
 
 internal fun isNewerVersion(currentVersionName: String, releaseTag: String): Boolean {

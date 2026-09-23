@@ -1,5 +1,6 @@
 package io.rovly.pitchee.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -30,9 +32,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.rovly.pitchee.R
 import io.rovly.pitchee.update.UpdateUiState
@@ -57,6 +63,11 @@ internal fun SettingsScreen(
     var customText by remember { mutableStateOf(preferences.customText()) }
     var customSaved by remember { mutableStateOf(false) }
     val language = if (languageCode.startsWith("en")) "en" else "zh"
+    val uriHandler = LocalUriHandler.current
+    val repositoryUrl = stringResource(R.string.settings_repository_url)
+    val pitcheeCoreUrl = stringResource(R.string.settings_pitchee_core_url)
+    val lvyZhanUrl = stringResource(R.string.settings_author_lvy_url)
+    val ryoFengUrl = stringResource(R.string.settings_author_ryo_url)
 
     Column(
         modifier = Modifier
@@ -281,6 +292,126 @@ internal fun SettingsScreen(
             UpdateUiState.Idle,
             UpdateUiState.Checking,
             -> Unit
+        }
+        Spacer(Modifier.height(24.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Spacer(Modifier.height(20.dp))
+        Text(
+            text = stringResource(R.string.settings_about),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = stringResource(R.string.settings_authors),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        AuthorRow(
+            name = "Lvy Zhan",
+            profileUrl = lvyZhanUrl,
+            avatarRes = R.drawable.author_lvy_zhan,
+            onClick = { uriHandler.openUri(lvyZhanUrl) },
+        )
+        Spacer(Modifier.height(10.dp))
+        AuthorRow(
+            name = "Ryo Feng",
+            profileUrl = ryoFengUrl,
+            avatarRes = R.drawable.author_ryo_feng,
+            onClick = { uriHandler.openUri(ryoFengUrl) },
+        )
+        Spacer(Modifier.height(20.dp))
+        Text(
+            text = stringResource(R.string.settings_repository),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.settings_repository_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = repositoryUrl,
+            modifier = Modifier.clickable { uriHandler.openUri(repositoryUrl) },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.height(20.dp))
+        Text(
+            text = stringResource(R.string.settings_open_source),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.settings_open_source_intro),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(6.dp))
+        listOf(
+            R.string.settings_license_pitchee_core,
+            R.string.settings_license_swift_f0,
+            R.string.settings_license_silero_vad,
+            R.string.settings_license_speechbrain,
+            R.string.settings_license_onnxruntime,
+            R.string.settings_license_androidx,
+            R.string.settings_license_markwon,
+        ).forEach { license ->
+            Text(
+                text = stringResource(license),
+                modifier = Modifier.padding(vertical = 2.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = pitcheeCoreUrl,
+            modifier = Modifier.clickable { uriHandler.openUri(pitcheeCoreUrl) },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+@Composable
+private fun AuthorRow(
+    name: String,
+    profileUrl: String,
+    avatarRes: Int,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(76.dp)
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Image(
+            painter = androidx.compose.ui.res.painterResource(avatarRes),
+            contentDescription = name,
+            modifier = Modifier
+                .size(52.dp)
+                .clip(CircleShape),
+            contentScale = ContentScale.Crop,
+        )
+        Spacer(Modifier.size(12.dp))
+        Column {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.size(3.dp))
+            Text(
+                text = profileUrl,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }

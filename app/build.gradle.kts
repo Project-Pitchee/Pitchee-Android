@@ -90,11 +90,11 @@ android {
         versionCode = appVersionCode
         versionName = appVersionName
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         externalNativeBuild {
             cmake {
@@ -105,6 +105,15 @@ android {
                 )
                 cppFlags += "-std=c++17"
             }
+        }
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "x86_64")
+            isUniversalApk = true
         }
     }
 
@@ -133,7 +142,7 @@ android {
         release {
             signingConfig = signingConfigs.findByName("release")
             optimization {
-                enable = false
+                enable = true
             }
         }
     }
@@ -142,6 +151,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
     packaging {

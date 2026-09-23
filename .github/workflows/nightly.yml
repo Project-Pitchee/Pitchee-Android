@@ -17,16 +17,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check for changes
+        id: changes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest_tag="$(curl -fsSL -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$GITHUB_REPOSITORY/releases?per_page=30" | jq -r '[.[] | select(.draft == false)][0].tag_name // empty')"
+          if [ -z "$latest_tag" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          remote_sha="$(git ls-remote origin "refs/tags/$latest_tag^{}" | awk '{print $1}')"
+          if [ -z "$remote_sha" ]; then
+            remote_sha="$(git ls-remote origin "refs/tags/$latest_tag" | awk '{print $1}')"
+          fi
+          head_sha="$(git rev-parse HEAD)"
+
+          if [ "$remote_sha" = "$head_sha" ]; then
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Java
+        if: steps.changes.outputs.should_build == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Gradle
+        if: steps.changes.outputs.should_build == 'true'
         uses: gradle/actions/setup-gradle@v4
 
       - name: Compute version
+        if: steps.changes.outputs.should_build == 'true'
         id: version
         shell: bash
         run: |
@@ -36,6 +63,7 @@ jobs:
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
 
       - name: Prepare signing key
+        if: steps.changes.outputs.should_build == 'true'
         shell: bash
         env:
           PITCHEE_STORE_PASSWORD: ${{ secrets.PITCHEE_STORE_PASSWORD }}
@@ -48,6 +76,7 @@ jobs:
           fi
 
       - name: Build APK
+        if: steps.changes.outputs.should_build == 'true'
         id: build
         shell: bash
         env:
@@ -59,18 +88,19 @@ jobs:
             ./gradlew assembleRelease \
               -PversionName="${{ steps.version.outputs.name }}" \
               -PversionCode="${{ steps.version.outputs.code }}"
-            echo "apk=app/build/outputs/apk/release/app-release.apk" >> "$GITHUB_OUTPUT"
+            echo "apk_dir=app/build/outputs/apk/release" >> "$GITHUB_OUTPUT"
           else
             ./gradlew assembleDebug \
               -PversionName="${{ steps.version.outputs.name }}" \
               -PversionCode="${{ steps.version.outputs.code }}"
-            echo "apk=app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_OUTPUT"
+            echo "apk_dir=app/build/outputs/apk/debug" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish nightly release
+        if: steps.changes.outputs.should_build == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.name }}
           name: ${{ steps.version.outputs.name }}
           prerelease: true
-          files: ${{ steps.build.outputs.apk }}
+          files: ${{ steps.build.outputs.apk_dir }}/*.apk
