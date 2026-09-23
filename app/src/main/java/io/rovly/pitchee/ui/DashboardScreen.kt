@@ -786,12 +786,13 @@ private fun AnalysisHistoryContent(entry: AnalysisHistoryEntry) {
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = "%s %.1f   %s %.1f   %s".format(
-                    "S",
+                text = stringResource(
+                    R.string.dashboard_history_metrics,
                     entry.standardScore,
-                    "N",
                     entry.naturalnessScore,
-                    entry.meanF0Hz?.let { "F0 %.0f".format(it) } ?: "F0 --",
+                    entry.meanF0Hz?.let {
+                        stringResource(R.string.dashboard_f0_value, it)
+                    } ?: stringResource(R.string.dashboard_f0_unavailable),
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

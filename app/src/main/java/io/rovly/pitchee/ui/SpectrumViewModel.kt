@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import io.rovly.pitchee.R
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -57,6 +58,7 @@ data class SpectrumRewindFeedback(
 )
 
 class SpectrumViewModel(
+    private val context: Context,
     private val recorder: RealtimeF0AudioRecorder,
 ) : ViewModel() {
     private var liveJob: Job? = null
@@ -364,7 +366,7 @@ class SpectrumViewModel(
                         samples.size,
                         AudioTrack.WRITE_BLOCKING,
                     )
-                    check(written >= 0) { "音频回放失败：$written" }
+                    check(written >= 0) { context.getString(R.string.error_audio_playback_failed, written) }
                     writePosition += written
                 }
 
@@ -490,7 +492,7 @@ class SpectrumViewModel(
             AudioFormat.CHANNEL_OUT_MONO,
             AudioFormat.ENCODING_PCM_FLOAT,
         )
-        check(minimumBuffer > 0) { "当前设备不支持实时音频回放" }
+        check(minimumBuffer > 0) { context.getString(R.string.error_realtime_playback_unsupported) }
         return AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -513,7 +515,7 @@ class SpectrumViewModel(
             .also {
                 check(it.state == AudioTrack.STATE_INITIALIZED) {
                     it.release()
-                    "无法初始化音频回放"
+                    context.getString(R.string.error_audio_playback_init)
                 }
             }
     }
@@ -582,7 +584,10 @@ class SpectrumViewModel(
 
         fun factory(context: Context): ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                SpectrumViewModel(RealtimeF0AudioRecorder(context.applicationContext))
+                SpectrumViewModel(
+                    context = context.applicationContext,
+                    recorder = RealtimeF0AudioRecorder(context.applicationContext),
+                )
             }
         }
     }

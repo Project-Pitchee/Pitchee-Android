@@ -7,11 +7,17 @@ import org.junit.Test
 
 class ReadingPassagesTest {
     @Test
-    fun includesElevenBilingualPassages() {
+    fun includesElevenLocalizedPassages() {
         assertEquals(11, readingPassages.size)
-        assertTrue(readingPassages.all { it.titleZh.isNotBlank() && it.titleEn.isNotBlank() })
-        assertTrue(readingPassages.all { it.textZh.isNotBlank() && it.textEn.isNotBlank() })
-        assertTrue(readingPassages.any { it.textZh.length > 30 })
-        assertTrue(readingPassages.any { it.textEn.length > 90 })
+        assertTrue(
+            readingPassages.all {
+                it.titleRes == R.array.reading_passage_titles &&
+                    it.textRes == R.array.reading_passage_texts
+            },
+        )
+        assertEquals(
+            (0 until readingPassages.size).toSet(),
+            readingPassages.map { it.index }.toSet(),
+        )
     }
 }

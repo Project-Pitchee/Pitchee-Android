@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import io.rovly.pitchee.R
 import io.rovly.pitchee.data.AnalysisHistoryEntry
 import io.rovly.pitchee.data.AudioRecorder
 import io.rovly.pitchee.data.HistoryStore
@@ -67,6 +68,7 @@ sealed interface RecordUiState {
 }
 
 class RecordViewModel(
+    private val context: Context,
     private val repository: PitcheeRepository,
     private val recorder: AudioRecorder,
     private val scoreHistory: SharedPreferences,
@@ -97,7 +99,7 @@ class RecordViewModel(
             recorder.start()
         } catch (error: Throwable) {
             mutableState.value = RecordUiState.Error(
-                error.message ?: "无法开始录音，请检查麦克风权限"
+                error.message ?: context.getString(R.string.error_recording_start)
             )
             return
         }
@@ -133,13 +135,13 @@ class RecordViewModel(
         val file = try {
             recorder.stop()
         } catch (error: Throwable) {
-            mutableState.value = RecordUiState.Error(error.message ?: "录音失败")
+            mutableState.value = RecordUiState.Error(error.message ?: context.getString(R.string.error_recording_failed))
             return
         }
 
         if (recording.elapsedSeconds < MINIMUM_RECORDING_SECONDS) {
             file.delete()
-            mutableState.value = RecordUiState.Error("录音时长不足 5 秒，请重新录制")
+            mutableState.value = RecordUiState.Error(context.getString(R.string.error_recording_duration_short))
             return
         }
 
@@ -173,7 +175,7 @@ class RecordViewModel(
                     recordedAudio.file.delete()
                     retainedAudio = null
                     mutableState.value = RecordUiState.Error(
-                        message = "有效说话时间不足 5 秒，请重新录制"
+                        message = context.getString(R.string.error_speech_duration_short)
                     )
                 } else {
                     val previousScore = lastResultScore
@@ -224,7 +226,7 @@ class RecordViewModel(
                 val audio = recordedAudio
                 if (audio == null) file.delete()
                 mutableState.value = RecordUiState.Error(
-                    message = error.message ?: "音频分析失败",
+                    message = error.message ?: context.getString(R.string.error_analysis_failed),
                     audio = audio,
                 )
             }
@@ -298,6 +300,7 @@ class RecordViewModel(
             initializer {
                 val appContext = context.applicationContext
                 RecordViewModel(
+                    context = appContext,
                     repository = PitcheeRepository(appContext),
                     recorder = AudioRecorder(appContext),
                     scoreHistory = appContext.getSharedPreferences(

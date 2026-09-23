@@ -36,7 +36,7 @@ sealed interface UpdateUiState {
 
 class UpdateViewModel(
     context: Context,
-    private val client: GitHubReleaseClient = GitHubReleaseClient(),
+    private val client: GitHubReleaseClient = GitHubReleaseClient(context.applicationContext),
 ) : ViewModel() {
     private val appContext = context.applicationContext
     private val preferences = appContext.getSharedPreferences(
@@ -160,7 +160,7 @@ class UpdateViewModel(
 
     private suspend fun downloadApk(release: GitHubRelease): File = withContext(Dispatchers.IO) {
         val directory = File(appContext.cacheDir, UPDATE_DIRECTORY).apply {
-            check(mkdirs() || isDirectory) { "无法创建更新缓存目录" }
+            check(mkdirs() || isDirectory) { appContext.getString(R.string.error_update_cache_create) }
         }
         val target = File(directory, "pitchee-${release.tagName.safeFileName()}.apk")
         val temporary = File(directory, "${target.name}.part")
@@ -172,7 +172,7 @@ class UpdateViewModel(
         }
         try {
             if (connection.responseCode !in 200..299) {
-                error("更新下载失败：HTTP ${connection.responseCode}")
+                error(appContext.getString(R.string.error_update_download_http, connection.responseCode))
             }
             val totalBytes = connection.contentLengthLong.takeIf { it > 0L }
             var downloadedBytes = 0L
@@ -197,7 +197,7 @@ class UpdateViewModel(
                 }
             }
             if (target.exists()) target.delete()
-            check(temporary.renameTo(target)) { "无法保存更新文件" }
+            check(temporary.renameTo(target)) { appContext.getString(R.string.error_update_save) }
             target
         } finally {
             connection.disconnect()

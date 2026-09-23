@@ -17,8 +17,8 @@ class RecordedAudio private constructor(
             pcm: PcmAudio,
             bucketCount: Int = DEFAULT_BUCKET_COUNT,
         ): RecordedAudio {
-            require(pcm.frameCount > 0) { "PCM audio must contain at least one frame" }
-            require(bucketCount > 0) { "bucketCount must be positive" }
+            require(pcm.frameCount > 0)
+            require(bucketCount > 0)
 
             val buckets = minOf(bucketCount, pcm.frameCount)
             val waveform = FloatArray(buckets)

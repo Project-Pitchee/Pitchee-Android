@@ -10,6 +10,7 @@ import io.rovly.pitchee.data.VfpMetrics
 import io.rovly.pitchee.data.VfpWindow
 import io.rovly.pitchee.data.VoiceActivity
 import io.rovly.pitchee.ui.ScoreInsight
+import io.rovly.pitchee.ui.ScoreMetric
 import io.rovly.pitchee.ui.ScoreRuleState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,7 +19,7 @@ import org.junit.Test
 
 class ScoreInsightTest {
     @Test
-    fun producesEnglishInsightText() {
+    fun producesF0BottleneckInsight() {
         val result = result(
             standardScore = 80.0,
             naturalnessScore = 90.0,
@@ -33,10 +34,10 @@ class ScoreInsightTest {
             ),
         )
 
-        val insight = ScoreInsight.from(result, "en")
+        val insight = ScoreInsight.from(result)
 
-        assertTrue(insight.bottleneckTitle.contains("F0"))
-        assertTrue(insight.bottleneckDescription.contains("165"))
+        assertEquals(ScoreMetric.F0, insight.bottleneckMetric)
+        assertEquals(R.string.insight_desc_bottleneck_f0, insight.bottleneckDescription?.resourceId)
     }
 
     @Test
@@ -79,9 +80,8 @@ class ScoreInsightTest {
         val insight = ScoreInsight.from(result)
 
         assertEquals(ScoreRuleState.CAPPED, insight.ruleState)
-        assertTrue(insight.bottleneckTitle.contains("F0"))
-        assertTrue(insight.ruleImpact.contains("11"))
-        assertTrue(insight.ruleImpact.contains("59"))
+        assertEquals(ScoreMetric.F0, insight.bottleneckMetric)
+        assertEquals(R.string.insight_impact_cap_reduced_format, insight.ruleImpact.resourceId)
     }
 
     @Test
@@ -103,8 +103,8 @@ class ScoreInsightTest {
         val insight = ScoreInsight.from(result)
 
         assertEquals(ScoreRuleState.CONTINUOUS, insight.ruleState)
-        assertTrue(insight.bottleneckTitle.contains("自然度"))
-        assertEquals("无封顶、无提升", insight.ruleImpact)
+        assertEquals(ScoreMetric.NATURALNESS, insight.bottleneckMetric)
+        assertEquals(R.string.insight_impact_no_cap_boost, insight.ruleImpact.resourceId)
     }
 
     private fun result(

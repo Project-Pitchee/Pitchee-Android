@@ -3,6 +3,7 @@ package io.rovly.pitchee.data
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import io.rovly.pitchee.R
 import java.io.Closeable
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -56,10 +57,10 @@ class PitcheeRepository(
         onPhase: ((PitcheePhase) -> Unit)? = null,
         onProgress: ((PitcheeProgress) -> Unit)? = null,
     ): PitcheeResult = withContext(Dispatchers.Default) {
-        require(samples.isNotEmpty()) { "PCM 数据不能为空" }
-        require(sampleRate > 0) { "采样率必须大于 0" }
+        require(samples.isNotEmpty()) { appContext.getString(R.string.error_pcm_empty) }
+        require(sampleRate > 0) { appContext.getString(R.string.error_sample_rate_invalid) }
         require(channels > 0 && samples.size % channels == 0) {
-            "PCM 数据必须包含完整的交错声道帧"
+            appContext.getString(R.string.error_pcm_channels_invalid)
         }
 
         synchronized(lock) {
@@ -113,7 +114,7 @@ class PitcheeRepository(
 
         val staging = File(appContext.cacheDir, "$MODELS_DIRECTORY-staging")
         staging.deleteRecursively()
-        check(staging.mkdirs()) { "无法创建模型缓存目录" }
+        check(staging.mkdirs()) { appContext.getString(R.string.error_model_cache_create) }
         try {
             MODEL_FILES.forEach { name ->
                 appContext.assets.open(name).use { input ->
@@ -122,7 +123,7 @@ class PitcheeRepository(
             }
             File(staging, READY_MARKER).writeText(MODEL_CACHE_VERSION)
             target.deleteRecursively()
-            check(staging.renameTo(target)) { "无法提交模型缓存" }
+            check(staging.renameTo(target)) { appContext.getString(R.string.error_model_cache_commit) }
         } catch (error: Throwable) {
             staging.deleteRecursively()
             throw error

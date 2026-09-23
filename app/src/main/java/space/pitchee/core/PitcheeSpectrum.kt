@@ -29,8 +29,8 @@ class PitcheeSpectrum private constructor(
         samples: FloatArray,
         onFrame: PitcheeSpectrumFrameCallback,
     ): Long {
-        check(nativeHandle != 0L) { "PitcheeSpectrum is closed" }
-        require(samples.isNotEmpty()) { "PCM buffer must not be empty" }
+        check(nativeHandle != 0L)
+        require(samples.isNotEmpty())
         return nativeProcess(nativeHandle, samples, onFrame)
     }
 
@@ -70,11 +70,11 @@ class PitcheeSpectrum private constructor(
             valueType: PitcheeSpectrumValue = PitcheeSpectrumValue.DBFS,
             smoothing: Float = 0.65f,
         ): PitcheeSpectrum {
-            require(fftSize > 0) { "fftSize must be positive" }
-            require(hopSamples > 0) { "hopSamples must be positive" }
-            require(minHz >= 0) { "minHz must not be negative" }
-            require(maxHz > minHz) { "maxHz must be greater than minHz" }
-            require(smoothing in 0f..1f) { "smoothing must be in 0..1" }
+            require(fftSize > 0)
+            require(hopSamples > 0)
+            require(minHz >= 0)
+            require(maxHz > minHz)
+            require(smoothing in 0f..1f)
             return PitcheeSpectrum(
                 nativeCreate(
                     fftSize = fftSize,

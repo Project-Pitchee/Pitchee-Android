@@ -113,4 +113,184 @@
     <string name="record_permission_denied">需要麦克风权限才能录音和分析</string>
     <string name="analysis_failed">分析失败</string>
 
+    <string name="insight_rule_f0_unavailable">基频不可用</string>
+    <string name="insight_rule_qualified_boost">达标提升规则</string>
+    <string name="insight_rule_high_f0_low_naturalness">高基频、低自然度封顶</string>
+    <string name="insight_rule_low_f0">低基频封顶</string>
+    <string name="insight_rule_low_f0_low_naturalness">低基频、低自然度封顶</string>
+    <string name="insight_rule_timbre_cap">音色分不足封顶</string>
+    <string name="insight_rule_continuous">连续评分</string>
+    <string name="insight_desc_f0_unavailable">未找到可靠的基频，本次直接使用标准音色分，未套用综合分公式。</string>
+    <string name="insight_desc_qualified_boost">三项条件同时满足时，综合分进入 60–100 区间。</string>
+    <string name="insight_desc_high_f0_low_naturalness">基频已经较高，但自然度低于 50。</string>
+    <string name="insight_desc_low_f0">自然度达标，但 F0 不高于 165 Hz，当前基频限制了综合分。</string>
+    <string name="insight_desc_low_f0_low_naturalness">F0 不高于 165 Hz 且自然度低于 50，基频和自然度同时拖分。</string>
+    <string name="insight_desc_timbre_cap">基频高于 165 Hz，但模型音色标准分低于 50，音色仍在限制最终结果。</string>
+    <string name="insight_desc_continuous">本次没有触发封顶或提升，直接使用四项连续评分公式。</string>
+    <string name="insight_impact_timbre">综合分 = 标准音色分</string>
+    <string name="insight_impact_boost_format">规则提升 +%1$.1f</string>
+    <string name="insight_impact_boost_met">已满足提升条件</string>
+    <string name="insight_impact_no_cap_boost">无封顶、无提升</string>
+    <string name="insight_impact_cap_reduced_format">封顶 %1$s，实际压低 %2$.1f 分</string>
+    <string name="insight_impact_cap_unchanged_format">规则上限 %1$s，本次未继续压低</string>
+    <string name="insight_bottleneck_naturalness">自然度低于阈值</string>
+    <string name="insight_bottleneck_f0">F0 低于阈值</string>
+    <string name="insight_bottleneck_f0_naturalness">F0 和自然度低于阈值</string>
+    <string name="insight_bottleneck_timbre">音色标准分低于阈值</string>
+    <string name="insight_desc_bottleneck_f0_unavailable">没有可靠的 F0，本次没有触发其他综合分规则。</string>
+    <string name="insight_desc_bottleneck_naturalness">F0 高于 165 Hz，但自然度低于 50，触发最高 30 分规则。</string>
+    <string name="insight_desc_bottleneck_f0">自然度达到 50，但 F0 不高于 165 Hz，触发最高 59 分规则。</string>
+    <string name="insight_desc_bottleneck_f0_naturalness">F0 不高于 165 Hz，且自然度低于 50，触发最高 20 分规则。</string>
+    <string name="insight_desc_bottleneck_timbre">F0 高于 165 Hz，但音色标准分低于 50，触发最高 59 分规则。</string>
+    <string name="insight_desc_continuous_f0_unavailable">没有可用于连续评分的可靠 F0。</string>
+    <string name="insight_desc_continuous_f0">平均 F0 不高于 165 Hz。</string>
+    <string name="insight_desc_continuous_timbre">音色标准分低于 50。</string>
+    <string name="insight_desc_continuous_naturalness">自然度低于 50。</string>
+    <string name="score_pass_label">评估结果</string>
+    <string name="score_pass_title">你的声音很pass</string>
+    <string name="score_pass_desc">本次没有触发主要短板规则。</string>
+    <string name="score_view_rules">查看评分细则</string>
+    <string name="score_final_score">本次综合分</string>
+    <string name="score_current_metrics">本次指标</string>
+    <string name="score_current_rule">本次命中规则</string>
+    <string name="score_other_rules">未触发的其他规则</string>
+    <string name="score_other_rules_count">%1$d 条规则</string>
+    <string name="score_compare_previous">较上次</string>
+    <string name="score_first_test">首次测评</string>
+    <string name="score_vs_last_none">较上次 —</string>
+    <string name="score_vs_last_up">较上次 ↑ %1$s</string>
+    <string name="score_vs_last_down">较上次 ↓ %1$s</string>
+    <string name="score_vs_last_same">较上次 → %1$s</string>
+    <string name="score_main_bottleneck">主要短板</string>
+    <string name="score_lowest">最低</string>
+    <string name="score_base_formulas">基础公式</string>
+    <string name="score_base_formulas_note">所有规则以此基础计算</string>
+    <string name="score_formula_variables">Standard 代表标准音色分，范围 0 到 100。
+Naturalness 代表自然度分，范围 0 到 100。
+F0 代表平均基频，单位是 Hz。
+三个 _r 变量是归一化分数，范围 0 到 1。
+Base 是封顶或提升之前的综合基础分。
+Final 是最终显示的综合分。</string>
+    <string name="score_label_timbre">标准音色</string>
+    <string name="score_label_naturalness">自然度</string>
+    <string name="score_label_mean_f0">平均 F0</string>
+    <string name="score_value_score">%1$.1f</string>
+    <string name="score_value_hz">%1$.0f Hz</string>
+    <string name="score_value_not_detected">未检测到</string>
+    <string name="score_tier_limiter">综分限制项</string>
+    <string name="score_tier_fair">好</string>
+    <string name="score_tier_good">良好</string>
+    <string name="score_tier_great">很好</string>
+    <string name="score_tier_excellent">非常好</string>
+    <string name="score_metrics_toggle">显示音色/F0/VFP指标</string>
+    <string name="score_compare">对比上次</string>
+    <string name="score_f0_range_note">F0 进度条按 110–200 Hz 映射；最终规则以 165 Hz 为关键分界。</string>
+    <string name="score_rules_back">返回结果</string>
+    <string name="score_rules_title">评分规则</string>
+    <string name="score_rules_subtitle">结合本次指标查看综合分的计算过程</string>
+    <string name="pitch_average_f0_format">平均 %1$.0f Hz</string>
+    <string name="rule_doc_continuous_title">连续评分</string>
+    <string name="rule_doc_continuous_guidance">这次没有触发特殊限制。保持现在的节奏再录一次，就能观察趋势变化。</string>
+    <string name="rule_doc_continuous_condition">未命中下列任何封顶或提升规则</string>
+    <string name="rule_doc_continuous_handling">综合分采用 Base。</string>
+    <string name="rule_doc_boost_title">加分</string>
+    <string name="rule_doc_boost_guidance">三项指标都已经过线。继续用现在舒服的音高和语速朗读，稳定度会更容易保持。</string>
+    <string name="rule_doc_boost_condition">F0 > 165，Naturalness > 80，Standard > 50</string>
+    <string name="rule_doc_boost_handling">综合分最高为 100。\n如果 promoted > Base，综合分采用 promoted。</string>
+    <string name="rule_doc_high_f0_stylized_title">高基频、低自然度封顶</string>
+    <string name="rule_doc_high_f0_stylized_guidance">音高已经上去了，但自然度还没跟上。下一次先放松语气，不必刻意抬高音调。</string>
+    <string name="rule_doc_high_f0_stylized_condition">F0 > 165，Naturalness &lt; 50</string>
+    <string name="rule_doc_high_f0_stylized_handling">综合分最高为 30。\n请尝试自然说话，再提高音高。</string>
+    <string name="rule_doc_low_f0_natural_title">低基频封顶</string>
+    <string name="rule_doc_low_f0_natural_guidance">自然度已经不错，接下来把注意力放在音高上。声音不用抬高，保持舒服就好。</string>
+    <string name="rule_doc_low_f0_natural_condition">F0 ≤ 165，Naturalness ≥ 50</string>
+    <string name="rule_doc_low_f0_natural_handling">综合分最高为 59。\n下一次试着用稍高但仍舒服的音调朗读。</string>
+    <string name="rule_doc_low_f0_stylized_title">低基频、低自然度</string>
+    <string name="rule_doc_low_f0_stylized_guidance">这次音高和自然度都需要照顾。先放慢一点，完整自然地读完整个句子。</string>
+    <string name="rule_doc_low_f0_stylized_condition">F0 ≤ 165，Naturalness &lt; 50</string>
+    <string name="rule_doc_low_f0_stylized_handling">综合分最高为 20。\n先把朗读放松，再逐步提高音高。</string>
+    <string name="rule_doc_high_f0_male_title">音色分不足</string>
+    <string name="rule_doc_high_f0_male_guidance">音高和自然度已经达标，接下来重点练音色。试着让声音更明亮、更轻松。</string>
+    <string name="rule_doc_high_f0_male_condition">F0 > 165，Naturalness ≥ 50，Standard &lt; 50</string>
+    <string name="rule_doc_high_f0_male_handling">综合分最高为 59。\n下一次重点观察 Standard 的变化。</string>
+    <string name="rule_doc_f0_unavailable_title">基频不可用</string>
+    <string name="rule_doc_f0_unavailable_guidance">没有识别到稳定基频，下次可以离麦克风近一点。</string>
+    <string name="rule_doc_f0_unavailable_condition">F0 不可用</string>
+    <string name="rule_doc_f0_unavailable_handling">综合分直接采用标准音色分 Standard。</string>
+    <string name="score_rule_current">当前命中</string>
+    <string name="score_rule_condition">触发条件</string>
+    <string name="score_rule_formula">计算公式</string>
+    <string name="score_rule_result">处理结果</string>
+
+    <string-array name="reading_passage_titles">
+        <item>北风与太阳</item>
+        <item>乌鸦喝水</item>
+        <item>小马过河</item>
+        <item>龟兔赛跑</item>
+        <item>狐狸和葡萄</item>
+        <item>蚂蚁和蚱蜢</item>
+        <item>农夫与蛇</item>
+        <item>狮子和老鼠</item>
+        <item>城市老鼠和乡下老鼠</item>
+        <item>狐狸和乌鸦</item>
+        <item>两个旅人与熊</item>
+    </string-array>
+    <string-array name="reading_passage_texts">
+        <item>北风和太阳争论谁更有力量。路上来了一位行人，他们约定，谁能让行人脱下外套，谁就赢。北风用力吹，行人反而把外套裹得更紧。太阳温暖地照着，行人渐渐感到热，最后主动脱下了外套。</item>
+        <item>一只乌鸦口渴了，到处找水喝。它看见一个瓶子，瓶子里有水，可是水位太低，乌鸦够不着。乌鸦衔来一颗颗小石子放进瓶里。瓶子里的水渐渐升高，乌鸦终于喝到了水。</item>
+        <item>小马要把半袋麦子送到磨坊。一条小河挡住了路。牛说河水很浅，松鼠说河水很深。小马回家问妈妈。妈妈让它自己去试一试。小马小心地走进河里，发现河水既不像牛说的那么浅，也不像松鼠说的那么深。</item>
+        <item>兔子嘲笑乌龟走得太慢，乌龟便提出比赛。兔子跑得很快，很快就把乌龟甩在后面。它觉得胜券在握，就在路边睡着了。乌龟一步一步向前走，从兔子身边经过，最后先到达终点。</item>
+        <item>一只饥饿的狐狸看见架子上挂着一串葡萄。它跳了好几次，始终够不着。狐狸最后转身离开，嘴里说：“这些葡萄一定是酸的。”有些事情做不到时，人们常常会说它不值得。</item>
+        <item>夏天里，蚂蚁忙着搬运粮食，蚱蜢却每天唱歌玩耍。蚱蜢笑蚂蚁太辛苦。冬天来了，蚱蜢找不到食物，只能向蚂蚁求助。蚂蚁提醒它，夏天准备，冬天才不会挨饿。</item>
+        <item>寒冷的冬天，农夫在路边发现一条冻僵的蛇。他把蛇放进怀里取暖。蛇醒来后恢复了本性，咬伤了农夫。农夫后悔地说，他不该同情本性难移的恶人。</item>
+        <item>狮子抓住了一只小老鼠。老鼠请求狮子放它走，并答应以后一定报答。狮子觉得它太小，不会有什么用处，但还是放了它。后来狮子落入猎人的网中，老鼠咬断绳子，救出了狮子。</item>
+        <item>乡下老鼠请城市老鼠吃简单的粮食。城市老鼠嫌这里清苦，邀请它去城里享受美食。它们在城里刚坐下，猫和狗就接连出现。乡下老鼠只好逃回家，觉得安稳比丰盛更重要。</item>
+        <item>乌鸦叼着一块肉停在树上。狐狸很想得到它，就不断夸乌鸦的羽毛漂亮、歌声动听。乌鸦得意地张嘴唱歌，肉掉了下来。狐狸叼起肉说，下次不要轻易相信奉承。</item>
+        <item>两个旅人一起赶路，突然遇到一只熊。一个人迅速爬上树，另一个人来不及逃，只好躺下装死。熊闻了闻他的脸，以为他没有呼吸，便转身离开。树上的人下来后问熊说了什么。地上的人回答：“它说，危险时抛下朋友的人不可靠。”</item>
+    </string-array>
+    <string name="passage_custom_title">自定义语料</string>
+    <string name="error_permission_missing">缺少麦克风权限</string>
+    <string name="error_realtime_recorder_unsupported">当前设备不支持 16 kHz 单声道实时录音</string>
+    <string name="error_realtime_recorder_init">无法初始化实时录音</string>
+    <string name="error_realtime_recorder_read">实时录音读取失败：%1$d</string>
+    <string name="error_realtime_recorder_invalid">实时录音设备已失效</string>
+    <string name="error_pcm_empty">PCM 数据不能为空</string>
+    <string name="error_sample_rate_invalid">采样率必须大于 0</string>
+    <string name="error_pcm_channels_invalid">PCM 数据必须包含完整的交错声道帧</string>
+    <string name="error_model_cache_create">无法创建模型缓存目录</string>
+    <string name="error_model_cache_commit">无法提交模型缓存</string>
+    <string name="error_audio_open">无法打开所选音频文件</string>
+    <string name="error_audio_no_track">所选文件不包含可解码的音轨</string>
+    <string name="error_audio_mime_missing">音频轨道缺少 MIME 类型</string>
+    <string name="error_audio_empty">音频解码结果为空</string>
+    <string name="error_pcm_encoding_unsupported">暂不支持解码为 PCM 编码 %1$d</string>
+    <string name="error_recording_short">录音时间太短，请至少录制 1 秒</string>
+    <string name="error_recording_start">无法开始录音，请检查麦克风权限</string>
+    <string name="error_recording_failed">录音失败</string>
+    <string name="error_recording_duration_short">录音时长不足 5 秒，请重新录制</string>
+    <string name="error_speech_duration_short">有效说话时间不足 5 秒，请重新录制</string>
+    <string name="error_analysis_failed">音频分析失败</string>
+    <string name="error_realtime_pitch_failed">实时基频监测失败</string>
+    <string name="error_audio_playback_failed">音频回放失败：%1$d</string>
+    <string name="error_realtime_playback_unsupported">当前设备不支持实时音频回放</string>
+    <string name="error_audio_playback_init">无法初始化音频回放</string>
+    <string name="error_update_cache_create">无法创建更新缓存目录</string>
+    <string name="error_update_download_http">更新下载失败：HTTP %1$d</string>
+    <string name="error_update_save">无法保存更新文件</string>
+    <string name="error_analysis_result_missing">找不到这次分析的完整结果</string>
+    <string name="error_analysis_open">无法打开这次分析</string>
+    <string name="github_update_check_failed">GitHub 更新检查失败：HTTP %1$d</string>
+    <string name="error_realtime_recorder_running">实时录音已在运行</string>
+    <string name="error_realtime_recorder_not_running">实时录音未运行</string>
+    <string name="error_audio_recorder_running">录音器已在运行</string>
+    <string name="error_audio_recorder_not_running">录音器未运行</string>
+    <string name="error_recording_output_missing">录音输出文件缺失</string>
+    <string name="error_history_directory">无法创建分析历史目录</string>
+    <string name="timeline_threshold_165">165Hz</string>
+    <string name="timeline_f0_value">F0 %1$.0f</string>
+    <string name="timeline_standard_value">S %1$s</string>
+    <string name="timeline_naturalness_value">N %1$s</string>
+    <string name="dashboard_history_metrics">S %1$.1f   N %2$.1f   %3$s</string>
+    <string name="dashboard_f0_value">F0 %1$.0f</string>
+    <string name="dashboard_f0_unavailable">F0 --</string>
 </resources>

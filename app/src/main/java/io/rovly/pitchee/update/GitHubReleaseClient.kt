@@ -3,6 +3,7 @@ package io.rovly.pitchee.update
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import io.rovly.pitchee.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -17,6 +18,7 @@ data class GitHubRelease(
 )
 
 class GitHubReleaseClient(
+    private val context: android.content.Context,
     private val repository: String = "project-pitchee/Pitchee-Android",
 ) {
     suspend fun latestUpdate(currentVersionName: String): GitHubRelease? =
@@ -39,7 +41,9 @@ class GitHubReleaseClient(
             }
         try {
             if (connection.responseCode !in 200..299) {
-                throw IOException("GitHub 更新检查失败：HTTP ${connection.responseCode}")
+                throw IOException(
+                    context.getString(R.string.github_update_check_failed, connection.responseCode),
+                )
             }
             val body = connection.inputStream.bufferedReader().use { it.readText() }
             val array = JSONArray(body)

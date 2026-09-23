@@ -255,8 +255,8 @@ internal fun RealtimePitchScreen() {
                 Spacer(Modifier.height(10.dp))
             }
             val showToolbar = state.running || state.preparing || state.replaying
-            val passage = passagePreferences.activePassage(languageCode, selectedPassageIndex)
-            val passageText = passage.text(languageCode)
+            val passage = passagePreferences.activePassage(selectedPassageIndex)
+            val passageText = passage.text(context)
             val passageStyle = MaterialTheme.typography.bodyMedium
             val textMeasurer = rememberTextMeasurer(cacheSize = 8)
             val density = LocalDensity.current
@@ -814,7 +814,10 @@ private fun PitchChart(
 
         if (averageF0 != null) {
             Text(
-                text = loc("平均 %.0f Hz", "Avg %.0f Hz").format(animatedAverageF0),
+                text = stringResource(
+                    R.string.pitch_average_f0_format,
+                    animatedAverageF0,
+                ),
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .offset(y = yDp(animatedAverageF0) - 18.dp)

@@ -330,8 +330,8 @@ private fun ReadingPassageText(modifier: Modifier = Modifier) {
     var selectedIndex by rememberSaveable(preferences.officialIndex()) {
         mutableIntStateOf(preferences.officialIndex())
     }
-    val passage = preferences.activePassage(languageCode, selectedIndex)
-    val passageText = passage.text(languageCode)
+    val passage = preferences.activePassage(selectedIndex)
+    val passageText = passage.text(context)
     val passageStyle = MaterialTheme.typography.bodyMedium
     val textMeasurer = rememberTextMeasurer(cacheSize = 4)
     var widthPx by remember { mutableIntStateOf(0) }

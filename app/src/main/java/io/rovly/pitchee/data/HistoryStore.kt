@@ -1,6 +1,7 @@
 package io.rovly.pitchee.data
 
 import android.content.Context
+import io.rovly.pitchee.R
 import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
@@ -61,7 +62,7 @@ class HistoryStore(context: Context) {
         sourceAudio: File,
     ): AnalysisHistoryEntry {
         val directory = File(appContext.filesDir, ANALYSIS_DIRECTORY).apply {
-            check(mkdirs() || isDirectory) { "Unable to create analysis history directory" }
+            check(mkdirs() || isDirectory) { appContext.getString(R.string.error_history_directory) }
         }
         val baseName = entry.timestampMillis.toString()
         val extension = sourceAudio.extension.takeIf { it.isNotBlank() } ?: "m4a"

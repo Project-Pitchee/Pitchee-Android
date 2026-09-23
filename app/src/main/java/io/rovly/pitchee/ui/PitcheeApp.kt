@@ -507,16 +507,13 @@ private fun ScoreRulesPage(
                     ),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
                 ) {
-                    Text(loc("返回结果", "Back to result"))
+                    Text(stringResource(R.string.score_rules_back))
                 }
                 Spacer(Modifier.height(8.dp))
             }
             ScreenHeader(
-                title = loc("评分规则", "Scoring rules"),
-                subtitle = loc(
-                    "结合本次指标查看综合分的计算过程",
-                    "See how the final score is calculated from the current metrics",
-                ),
+                title = stringResource(R.string.score_rules_title),
+                subtitle = stringResource(R.string.score_rules_subtitle),
             )
             Spacer(Modifier.height(20.dp))
             ScoreRulesContent(

@@ -6,6 +6,7 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import io.rovly.pitchee.R
 import java.nio.ByteOrder
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
@@ -32,18 +33,18 @@ internal object AudioFileDecoder {
                         descriptor.startOffset,
                         descriptor.length,
                     )
-                } ?: error("无法打开所选音频文件")
+                } ?: error(context.getString(R.string.error_audio_open))
 
                 val trackIndex = (0 until extractor.trackCount).firstOrNull { index ->
                     extractor.getTrackFormat(index)
                         .getString(MediaFormat.KEY_MIME)
                         ?.startsWith("audio/") == true
-                } ?: error("所选文件不包含可解码的音轨")
+                } ?: error(context.getString(R.string.error_audio_no_track))
 
                 extractor.selectTrack(trackIndex)
                 val inputFormat = extractor.getTrackFormat(trackIndex)
                 val mime = inputFormat.getString(MediaFormat.KEY_MIME)
-                    ?: error("音频轨道缺少 MIME 类型")
+                    ?: error(context.getString(R.string.error_audio_mime_missing))
                 val sourceSampleRate = inputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
                 val sourceChannels = inputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
                 val outputEncoding = inputFormat.integerOrNull(MediaFormat.KEY_PCM_ENCODING)
@@ -51,6 +52,7 @@ internal object AudioFileDecoder {
 
                 if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) {
                     return@withTimeout extractRawPcm(
+                        context = context,
                         extractor = extractor,
                         format = inputFormat,
                         encoding = outputEncoding,
@@ -65,6 +67,7 @@ internal object AudioFileDecoder {
                 }
 
                 decodeWithCodec(
+                    context = context,
                     extractor = extractor,
                     inputFormat = inputFormat,
                     mime = mime,
@@ -80,6 +83,7 @@ internal object AudioFileDecoder {
     }
 
     private suspend fun decodeWithCodec(
+        context: Context,
         extractor: MediaExtractor,
         inputFormat: MediaFormat,
         mime: String,
@@ -159,6 +163,7 @@ internal object AudioFileDecoder {
                             outputBuffer.limit(info.offset + info.size)
                             outputBuffer.order(ByteOrder.nativeOrder())
                             appendSamples(
+                                context,
                                 outputBuffer,
                                 outputEncoding,
                                 samples,
@@ -173,7 +178,7 @@ internal object AudioFileDecoder {
             }
             codec.stop()
 
-            check(samples.isNotEmpty()) { "音频解码结果为空" }
+            check(samples.isNotEmpty()) { context.getString(R.string.error_audio_empty) }
             return PcmAudio(
                 samples = samples.toFloatArray(),
                 sampleRate = outputSampleRate,
@@ -185,6 +190,7 @@ internal object AudioFileDecoder {
     }
 
     private suspend fun extractRawPcm(
+        context: Context,
         extractor: MediaExtractor,
         format: MediaFormat,
         encoding: Int,
@@ -206,15 +212,16 @@ internal object AudioFileDecoder {
             if (size < 0) break
             buffer.position(0)
             buffer.limit(size)
-            appendSamples(buffer, encoding, samples, maximumSamples)
+            appendSamples(context, buffer, encoding, samples, maximumSamples)
             extractor.advance()
         }
 
-        check(samples.isNotEmpty()) { "音频解码结果为空" }
+        check(samples.isNotEmpty()) { context.getString(R.string.error_audio_empty) }
         return PcmAudio(samples.toFloatArray(), sampleRate, channels)
     }
 
     private fun appendSamples(
+        context: Context,
         buffer: java.nio.ByteBuffer,
         encoding: Int,
         target: MutableList<Float>,
@@ -235,7 +242,7 @@ internal object AudioFileDecoder {
                     }
                 }
             }
-            else -> error("暂不支持解码为 PCM 编码 $encoding")
+            else -> error(context.getString(R.string.error_pcm_encoding_unsupported, encoding))
         }
     }
 

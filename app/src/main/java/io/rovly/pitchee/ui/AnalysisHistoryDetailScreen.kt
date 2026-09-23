@@ -63,15 +63,17 @@ internal fun AnalysisHistoryDetailScreen(
         mutableStateOf<HistoryDetailState>(HistoryDetailState.Loading)
     }
     var showingRules by remember { mutableStateOf(false) }
+    val missingResultMessage = stringResource(R.string.error_analysis_result_missing)
+    val openAnalysisMessage = stringResource(R.string.error_analysis_open)
 
     DisposableEffect(repository) {
         onDispose { repository.close() }
     }
 
-    LaunchedEffect(entry.timestampMillis) {
+    LaunchedEffect(entry.timestampMillis, missingResultMessage, openAnalysisMessage) {
         state = runCatching {
             val result = store.analysisResult(entry)
-                ?: error("找不到这次分析的完整结果")
+                ?: error(missingResultMessage)
             val audio = store.analysisAudioFile(entry)?.let { audioFile ->
                 runCatching {
                     val pcm = repository.decode(Uri.fromFile(audioFile))
@@ -94,7 +96,7 @@ internal fun AnalysisHistoryDetailScreen(
                 },
             )
         }.getOrElse { error ->
-            HistoryDetailState.Error(error.message ?: "无法打开这次分析")
+            HistoryDetailState.Error(error.message ?: openAnalysisMessage)
         }
     }
 

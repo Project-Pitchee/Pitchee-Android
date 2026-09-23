@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import io.rovly.pitchee.R
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -72,6 +73,7 @@ data class PitchUiState(
 }
 
 class PitchViewModel(
+    private val context: Context,
     private val repository: PitcheeRepository,
     private val recorder: RealtimeF0AudioRecorder,
     private val historyStore: HistoryStore,
@@ -293,7 +295,7 @@ class PitchViewModel(
                         it.copy(
                             running = false,
                             preparing = false,
-                            error = error.message ?: "实时基频监测失败",
+                            error = error.message ?: context.getString(R.string.error_realtime_pitch_failed),
                         )
                     }
                 }
@@ -381,7 +383,7 @@ class PitchViewModel(
                         samples.size,
                         AudioTrack.WRITE_BLOCKING,
                     )
-                    check(written >= 0) { "音频回放失败：$written" }
+                    check(written >= 0) { context.getString(R.string.error_audio_playback_failed, written) }
                     writePosition += written
                 }
 
@@ -513,7 +515,7 @@ class PitchViewModel(
             AudioFormat.CHANNEL_OUT_MONO,
             AudioFormat.ENCODING_PCM_FLOAT,
         )
-        check(minimumBuffer > 0) { "当前设备不支持实时音频回放" }
+        check(minimumBuffer > 0) { context.getString(R.string.error_realtime_playback_unsupported) }
         return AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -536,7 +538,7 @@ class PitchViewModel(
             .also {
                 check(it.state == AudioTrack.STATE_INITIALIZED) {
                     it.release()
-                    "无法初始化音频回放"
+                    context.getString(R.string.error_audio_playback_init)
                 }
             }
     }
@@ -598,6 +600,7 @@ class PitchViewModel(
             initializer {
                 val appContext = context.applicationContext
                 PitchViewModel(
+                    context = appContext,
                     repository = PitcheeRepository(appContext),
                     recorder = RealtimeF0AudioRecorder(appContext),
                     historyStore = HistoryStore(appContext),

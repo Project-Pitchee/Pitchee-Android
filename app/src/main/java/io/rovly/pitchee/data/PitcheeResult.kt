@@ -191,6 +191,6 @@ private inline fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<
     List(length()) { transform(getJSONObject(it)) }
 
 fun PitcheeResult.hasSpeechSecondsAtLeast(minimumSeconds: Double): Boolean {
-    require(minimumSeconds >= 0.0) { "minimumSeconds must not be negative" }
+    require(minimumSeconds >= 0.0)
     return vad.speechSeconds >= minimumSeconds
 }

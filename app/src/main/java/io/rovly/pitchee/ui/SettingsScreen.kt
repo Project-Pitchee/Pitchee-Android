@@ -150,12 +150,12 @@ internal fun SettingsScreen(
                     )
                     Column(Modifier.padding(start = 8.dp)) {
                         Text(
-                            text = passage.title(languageCode),
+                            text = passage.title(context),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            text = passage.text(languageCode),
+                            text = passage.text(context),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,

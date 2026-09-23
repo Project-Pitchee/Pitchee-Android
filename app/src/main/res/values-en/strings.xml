@@ -112,4 +112,184 @@
     <string name="stop_and_analyze">Stop and analyze</string>
     <string name="record_permission_denied">Microphone permission is required to record and analyze</string>
     <string name="analysis_failed">Analysis failed</string>
+    <string name="insight_rule_f0_unavailable">F0 unavailable</string>
+    <string name="insight_rule_qualified_boost">Qualified boost</string>
+    <string name="insight_rule_high_f0_low_naturalness">High F0, low naturalness cap</string>
+    <string name="insight_rule_low_f0">Low F0 cap</string>
+    <string name="insight_rule_low_f0_low_naturalness">Low F0, low naturalness cap</string>
+    <string name="insight_rule_timbre_cap">Timbre score cap</string>
+    <string name="insight_rule_continuous">Continuous scoring</string>
+    <string name="insight_desc_f0_unavailable">No reliable F0 was found, so the final score uses the timbre score.</string>
+    <string name="insight_desc_qualified_boost">When all three conditions are met, the final score moves into the 60–100 range.</string>
+    <string name="insight_desc_high_f0_low_naturalness">F0 is high, but naturalness is below 50.</string>
+    <string name="insight_desc_low_f0">Naturalness passes, but F0 is not above 165 Hz.</string>
+    <string name="insight_desc_low_f0_low_naturalness">F0 is not above 165 Hz and naturalness is below 50.</string>
+    <string name="insight_desc_timbre_cap">F0 is above 165 Hz, but timbre remains below 50.</string>
+    <string name="insight_desc_continuous">No cap or boost was triggered, so the continuous formula was used.</string>
+    <string name="insight_impact_timbre">Final = timbre score</string>
+    <string name="insight_impact_boost_format">Boost +%1$.1f</string>
+    <string name="insight_impact_boost_met">Boost conditions met</string>
+    <string name="insight_impact_no_cap_boost">No cap or boost</string>
+    <string name="insight_impact_cap_reduced_format">Cap %1$s, reduced by %2$.1f</string>
+    <string name="insight_impact_cap_unchanged_format">Rule cap %1$s, no further reduction</string>
+    <string name="insight_bottleneck_naturalness">Naturalness below threshold</string>
+    <string name="insight_bottleneck_f0">F0 below threshold</string>
+    <string name="insight_bottleneck_f0_naturalness">F0 and naturalness below thresholds</string>
+    <string name="insight_bottleneck_timbre">Timbre below threshold</string>
+    <string name="insight_desc_bottleneck_f0_unavailable">No reliable F0 was available for the other rules.</string>
+    <string name="insight_desc_bottleneck_naturalness">F0 is above 165 Hz, but naturalness below 50 caps the score at 30.</string>
+    <string name="insight_desc_bottleneck_f0">Naturalness passes, but F0 at or below 165 Hz caps the score at 59.</string>
+    <string name="insight_desc_bottleneck_f0_naturalness">F0 at or below 165 Hz and naturalness below 50 cap the score at 20.</string>
+    <string name="insight_desc_bottleneck_timbre">F0 is above 165 Hz, but timbre below 50 caps the score at 59.</string>
+    <string name="insight_desc_continuous_f0_unavailable">No reliable F0 was available for continuous scoring.</string>
+    <string name="insight_desc_continuous_f0">Average F0 is at or below 165 Hz.</string>
+    <string name="insight_desc_continuous_timbre">Timbre score is below 50.</string>
+    <string name="insight_desc_continuous_naturalness">Naturalness is below 50.</string>
+    <string name="score_pass_label">Result</string>
+    <string name="score_pass_title">Your voice passes</string>
+    <string name="score_pass_desc">No main bottleneck rule was triggered.</string>
+    <string name="score_view_rules">View scoring details</string>
+    <string name="score_final_score">Final score</string>
+    <string name="score_current_metrics">Current metrics</string>
+    <string name="score_current_rule">Current scoring rule</string>
+    <string name="score_other_rules">Other rules</string>
+    <string name="score_other_rules_count">%1$d rules</string>
+    <string name="score_compare_previous">vs last</string>
+    <string name="score_first_test">First test</string>
+    <string name="score_vs_last_none">vs last —</string>
+    <string name="score_vs_last_up">vs last ↑ %1$s</string>
+    <string name="score_vs_last_down">vs last ↓ %1$s</string>
+    <string name="score_vs_last_same">vs last → %1$s</string>
+    <string name="score_main_bottleneck">Main bottleneck</string>
+    <string name="score_lowest">Lowest</string>
+    <string name="score_base_formulas">Base formulas</string>
+    <string name="score_base_formulas_note">Every rule starts from these formulas</string>
+    <string name="score_formula_variables">Standard is the timbre score, 0–100.
+Naturalness is the naturalness score, 0–100.
+F0 is mean pitch in Hz.
+Variables ending in _r are normalized to 0–1.
+Base is the score before caps or boosts.
+Final is the displayed composite score.</string>
+    <string name="score_label_timbre">Timbre</string>
+    <string name="score_label_naturalness">Naturalness</string>
+    <string name="score_label_mean_f0">Mean F0</string>
+    <string name="score_value_score">%1$.1f</string>
+    <string name="score_value_hz">%1$.0f Hz</string>
+    <string name="score_value_not_detected">Not detected</string>
+    <string name="score_tier_limiter">Score limiter</string>
+    <string name="score_tier_fair">Fair</string>
+    <string name="score_tier_good">Good</string>
+    <string name="score_tier_great">Great</string>
+    <string name="score_tier_excellent">Excellent</string>
+    <string name="score_metrics_toggle">Timbre / F0 / VFP metrics</string>
+    <string name="score_compare">Compare</string>
+    <string name="score_f0_range_note">F0 uses a 110–200 Hz display range. The rule threshold is 165 Hz.</string>
+    <string name="score_rules_back">Back to result</string>
+    <string name="score_rules_title">Scoring rules</string>
+    <string name="score_rules_subtitle">See how the final score is calculated from the current metrics</string>
+    <string name="pitch_average_f0_format">Avg %1$.0f Hz</string>
+    <string name="rule_doc_continuous_title">Continuous scoring</string>
+    <string name="rule_doc_continuous_guidance">No special limit was triggered. Keep the same pace to watch the trend.</string>
+    <string name="rule_doc_continuous_condition">No cap or boost rule below is triggered</string>
+    <string name="rule_doc_continuous_handling">The final score uses Base.</string>
+    <string name="rule_doc_boost_title">Qualified boost</string>
+    <string name="rule_doc_boost_guidance">All three metrics passed. Keep a comfortable pitch and pace to stay consistent.</string>
+    <string name="rule_doc_boost_condition">F0 > 165, Naturalness > 80, Standard > 50</string>
+    <string name="rule_doc_boost_handling">The maximum final score is 100. If promoted > Base, promoted is used.</string>
+    <string name="rule_doc_high_f0_stylized_title">High F0, low naturalness cap</string>
+    <string name="rule_doc_high_f0_stylized_guidance">F0 is high, but naturalness has not caught up. Relax the delivery before raising pitch further.</string>
+    <string name="rule_doc_high_f0_stylized_condition">F0 > 165, Naturalness &lt; 50</string>
+    <string name="rule_doc_high_f0_stylized_handling">The maximum final score is 30. Try natural speech first, then raise pitch.</string>
+    <string name="rule_doc_low_f0_natural_title">Low F0 cap</string>
+    <string name="rule_doc_low_f0_natural_guidance">Naturalness is already good. Focus on pitch without forcing your voice higher.</string>
+    <string name="rule_doc_low_f0_natural_condition">F0 ≤ 165, Naturalness ≥ 50</string>
+    <string name="rule_doc_low_f0_natural_handling">The maximum final score is 59. Next time, try a slightly higher but comfortable pitch.</string>
+    <string name="rule_doc_low_f0_stylized_title">Low F0 and low naturalness</string>
+    <string name="rule_doc_low_f0_stylized_guidance">Both pitch and naturalness need attention. Slow down and finish each sentence naturally.</string>
+    <string name="rule_doc_low_f0_stylized_condition">F0 ≤ 165, Naturalness &lt; 50</string>
+    <string name="rule_doc_low_f0_stylized_handling">The maximum final score is 20. Relax the delivery before raising pitch gradually.</string>
+    <string name="rule_doc_high_f0_male_title">Timbre score cap</string>
+    <string name="rule_doc_high_f0_male_guidance">Pitch and naturalness pass. Focus on a brighter, lighter timbre.</string>
+    <string name="rule_doc_high_f0_male_condition">F0 > 165, Naturalness ≥ 50, Standard &lt; 50</string>
+    <string name="rule_doc_high_f0_male_handling">The maximum final score is 59. Watch how Standard changes next time.</string>
+    <string name="rule_doc_f0_unavailable_title">F0 unavailable</string>
+    <string name="rule_doc_f0_unavailable_guidance">No stable F0 was detected. Try moving closer to the microphone.</string>
+    <string name="rule_doc_f0_unavailable_condition">F0 unavailable</string>
+    <string name="rule_doc_f0_unavailable_handling">The final score directly uses the timbre score Standard.</string>
+    <string name="score_rule_current">Current rule</string>
+    <string name="score_rule_condition">Condition</string>
+    <string name="score_rule_formula">Formula</string>
+    <string name="score_rule_result">Result</string>
+
+    <string-array name="reading_passage_titles">
+        <item>The North Wind and the Sun</item>
+        <item>The Crow and the Pitcher</item>
+        <item>The Little Horse Crosses the River</item>
+        <item>The Tortoise and the Hare</item>
+        <item>The Fox and the Grapes</item>
+        <item>The Ant and the Grasshopper</item>
+        <item>The Farmer and the Snake</item>
+        <item>The Lion and the Mouse</item>
+        <item>The Town Mouse and the Country Mouse</item>
+        <item>The Fox and the Crow</item>
+        <item>The Two Travelers and the Bear</item>
+    </string-array>
+    <string-array name="reading_passage_texts">
+        <item>The North Wind and the Sun argued about who was stronger. A traveler came down the road, so they agreed that whoever made him remove his coat would win. The wind blew hard, but the traveler held his coat tighter. The sun shone warmly until the traveler took off the coat himself.</item>
+        <item>A thirsty crow searched everywhere for water. It found a pitcher with water inside, but the water was too low for its beak to reach. The crow dropped one small stone after another into the pitcher. The water rose slowly, and at last the crow could drink.</item>
+        <item>A little horse had to carry half a bag of wheat to the mill. A river blocked the road. The ox said it was shallow, while the squirrel said it was deep. The horse asked its mother, who told it to try for itself. The horse stepped in carefully and learned that the river was neither as shallow nor as deep as the others had said.</item>
+        <item>The hare laughed at the tortoise for being slow, so the tortoise challenged him to a race. The hare ran far ahead and, certain of victory, stopped for a nap. The tortoise kept walking steadily, passed the sleeping hare, and reached the finish line first.</item>
+        <item>A hungry fox saw a bunch of grapes hanging from a vine. He jumped again and again but could not reach them. At last he walked away and said, “Those grapes are probably sour anyway.” People often call something worthless when they cannot have it.</item>
+        <item>Through the summer, the ants stored food while the grasshopper sang and played. The grasshopper laughed at them for working so hard. When winter came, he had nothing to eat and asked the ants for help. They reminded him that preparing in summer prevents hunger in winter.</item>
+        <item>On a cold winter day, a farmer found a frozen snake by the road and carried it inside his coat. When the snake revived, it bit him. The farmer regretted helping a creature whose nature had not changed.</item>
+        <item>A lion caught a tiny mouse. The mouse begged to be released and promised to repay him. The lion thought such a small creature could never help, but let it go. Later, the mouse gnawed through a hunter’s net and set the lion free.</item>
+        <item>A country mouse invited a town mouse to a simple meal. The town mouse called it plain and invited him to the city. They had barely started eating when cats and dogs appeared. The country mouse ran home, deciding that peace mattered more than luxury.</item>
+        <item>A crow sat in a tree with a piece of meat. Wanting it, the fox praised the crow’s feathers and voice. Flattered, the crow opened its beak to sing, and the meat fell. The fox picked it up and said not to trust flattery too easily.</item>
+        <item>Two travelers met a bear on the road. One climbed a tree, while the other fell to the ground and pretended to be dead. The bear sniffed his face, believed he was not breathing, and walked away. Later, the man in the tree asked what the bear had said. “It said not to trust a friend who abandons you in danger.”</item>
+    </string-array>
+    <string name="passage_custom_title">Custom passage</string>
+    <string name="error_permission_missing">Microphone permission is required</string>
+    <string name="error_realtime_recorder_unsupported">This device does not support 16 kHz mono realtime recording</string>
+    <string name="error_realtime_recorder_init">Unable to initialize realtime recording</string>
+    <string name="error_realtime_recorder_read">Realtime recording read failed: %1$d</string>
+    <string name="error_realtime_recorder_invalid">The realtime recorder is no longer available</string>
+    <string name="error_pcm_empty">PCM data cannot be empty</string>
+    <string name="error_sample_rate_invalid">Sample rate must be greater than 0</string>
+    <string name="error_pcm_channels_invalid">PCM data must contain complete interleaved channel frames</string>
+    <string name="error_model_cache_create">Unable to create the model cache directory</string>
+    <string name="error_model_cache_commit">Unable to commit the model cache</string>
+    <string name="error_audio_open">Unable to open the selected audio file</string>
+    <string name="error_audio_no_track">The selected file has no decodable audio track</string>
+    <string name="error_audio_mime_missing">The audio track is missing its MIME type</string>
+    <string name="error_audio_empty">The decoded audio is empty</string>
+    <string name="error_pcm_encoding_unsupported">PCM encoding %1$d is not supported</string>
+    <string name="error_recording_short">Recording is too short. Record for at least 1 second.</string>
+    <string name="error_recording_start">Unable to start recording. Check microphone permission.</string>
+    <string name="error_recording_failed">Recording failed</string>
+    <string name="error_recording_duration_short">Recording must be at least 5 seconds. Please record again.</string>
+    <string name="error_speech_duration_short">Valid speech must be at least 5 seconds. Please record again.</string>
+    <string name="error_analysis_failed">Audio analysis failed</string>
+    <string name="error_realtime_pitch_failed">Realtime pitch monitoring failed</string>
+    <string name="error_audio_playback_failed">Audio playback failed: %1$d</string>
+    <string name="error_realtime_playback_unsupported">Realtime audio playback is not supported on this device</string>
+    <string name="error_audio_playback_init">Unable to initialize audio playback</string>
+    <string name="error_update_cache_create">Unable to create the update cache directory</string>
+    <string name="error_update_download_http">Update download failed: HTTP %1$d</string>
+    <string name="error_update_save">Unable to save the update file</string>
+    <string name="error_analysis_result_missing">The complete analysis result could not be found</string>
+    <string name="error_analysis_open">Unable to open this analysis</string>
+    <string name="github_update_check_failed">GitHub update check failed: HTTP %1$d</string>
+    <string name="error_realtime_recorder_running">Realtime recorder is already running</string>
+    <string name="error_realtime_recorder_not_running">Realtime recorder is not running</string>
+    <string name="error_audio_recorder_running">Audio recorder is already running</string>
+    <string name="error_audio_recorder_not_running">Audio recorder is not running</string>
+    <string name="error_recording_output_missing">Recording output is missing</string>
+    <string name="error_history_directory">Unable to create the analysis history directory</string>
+    <string name="timeline_threshold_165">165Hz</string>
+    <string name="timeline_f0_value">F0 %1$.0f</string>
+    <string name="timeline_standard_value">S %1$s</string>
+    <string name="timeline_naturalness_value">N %1$s</string>
+    <string name="dashboard_history_metrics">S %1$.1f   N %2$.1f   %3$s</string>
+    <string name="dashboard_f0_value">F0 %1$.0f</string>
+    <string name="dashboard_f0_unavailable">F0 --</string>
 </resources>

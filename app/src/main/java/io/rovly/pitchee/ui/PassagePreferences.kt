@@ -1,6 +1,7 @@
 package io.rovly.pitchee.ui
 
 import android.content.Context
+import io.rovly.pitchee.R
 
 internal enum class PassageSource {
     OFFICIAL,
@@ -8,6 +9,7 @@ internal enum class PassageSource {
 }
 
 internal class PassagePreferences(context: Context) {
+    private val appContext = context.applicationContext
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     fun source(): PassageSource = when (
@@ -24,19 +26,16 @@ internal class PassagePreferences(context: Context) {
     fun customText(): String = preferences.getString(KEY_CUSTOM_TEXT, "").orEmpty()
 
     fun activePassage(
-        languageCode: String,
         officialIndex: Int = officialIndex(),
     ): ReadingPassage = when (source()) {
         PassageSource.OFFICIAL -> readingPassages[officialIndex.coerceIn(readingPassages.indices)]
         PassageSource.CUSTOM -> {
             val text = customText().ifBlank {
-                readingPassages[officialIndex()].text(languageCode)
+                readingPassages[officialIndex()].text(appContext)
             }
             ReadingPassage(
-                titleZh = "自定义语料",
-                titleEn = "Custom passage",
-                textZh = text,
-                textEn = text,
+                titleRes = R.string.passage_custom_title,
+                customText = text,
             )
         }
     }

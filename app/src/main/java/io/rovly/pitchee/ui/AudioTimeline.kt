@@ -519,7 +519,7 @@ private fun F0Track(
         }
 
         Text(
-            text = "165Hz",
+            text = stringResource(R.string.timeline_threshold_165),
             modifier = Modifier.offset(y = thresholdY + 2.dp),
             style = MaterialTheme.typography.labelSmall,
             color = thresholdLabelColor,
@@ -542,7 +542,7 @@ private fun F0Track(
                 tonalElevation = 0.dp,
             ) {
                 Text(
-                    text = "F0 %.0f".format(hz),
+                    text = stringResource(R.string.timeline_f0_value, hz),
                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
@@ -593,12 +593,18 @@ private fun F0Track(
             ) {
                 Column {
                     Text(
-                        text = "S ${playbackMetrics?.vfpScore?.roundToInt() ?: "--"}",
+                        text = stringResource(
+                            R.string.timeline_standard_value,
+                            playbackMetrics?.vfpScore?.roundToInt() ?: "--",
+                        ),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        text = "N ${playbackMetrics?.naturalnessScore?.roundToInt() ?: "--"}",
+                        text = stringResource(
+                            R.string.timeline_naturalness_value,
+                            playbackMetrics?.naturalnessScore?.roundToInt() ?: "--",
+                        ),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                     )

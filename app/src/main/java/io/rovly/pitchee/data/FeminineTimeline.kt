@@ -42,8 +42,8 @@ class FeminineTimeline private constructor(
             durationSeconds: Double,
             binCount: Int = DEFAULT_BIN_COUNT,
         ): FeminineTimeline {
-            require(durationSeconds > 0.0) { "durationSeconds must be positive" }
-            require(binCount > 0) { "binCount must be positive" }
+            require(durationSeconds > 0.0)
+            require(binCount > 0)
 
             val vfp = WeightedBins(binCount)
             result.vfp.windows.forEach { window ->

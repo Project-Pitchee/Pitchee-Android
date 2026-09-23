@@ -113,12 +113,10 @@ class PitcheeAnalyzer private constructor(private var nativeHandle: Long) : Clos
         onPhase: ((PitcheePhase) -> Unit)? = null,
         onProgress: ((PitcheeProgress) -> Unit)? = null,
     ): String {
-        check(nativeHandle != 0L) { "PitcheeAnalyzer is closed" }
-        require(samples.isNotEmpty()) { "PCM buffer must not be empty" }
-        require(sampleRate > 0) { "sampleRate must be positive" }
-        require(channels > 0 && samples.size % channels == 0) {
-            "PCM buffer must contain complete interleaved frames"
-        }
+        check(nativeHandle != 0L)
+        require(samples.isNotEmpty())
+        require(sampleRate > 0)
+        require(channels > 0 && samples.size % channels == 0)
         val phaseCallback = onPhase?.let { listener ->
             PitcheePhaseCallback { value ->
                 listener(PitcheePhase.fromNative(value))
@@ -147,9 +145,7 @@ class PitcheeAnalyzer private constructor(private var nativeHandle: Long) : Clos
         } else {
             nativeAnalyze(nativeHandle, samples, sampleRate, channels, phaseCallback)
         }
-        return checkNotNull(result) {
-            "PitcheeCore returned an empty result"
-        }
+        return checkNotNull(result)
     }
 
     @Synchronized
@@ -157,9 +153,9 @@ class PitcheeAnalyzer private constructor(private var nativeHandle: Long) : Clos
         contextSamples: Int = DEFAULT_F0_CONTEXT_SAMPLES,
         hopSamples: Int = DEFAULT_F0_HOP_SAMPLES,
     ): PitcheeRealtimeF0 {
-        check(nativeHandle != 0L) { "PitcheeAnalyzer is closed" }
-        require(contextSamples > 0) { "contextSamples must be positive" }
-        require(hopSamples > 0) { "hopSamples must be positive" }
+        check(nativeHandle != 0L)
+        require(contextSamples > 0)
+        require(hopSamples > 0)
         return PitcheeRealtimeF0(
             nativeRealtimeF0Create(nativeHandle, contextSamples, hopSamples),
         )
@@ -203,8 +199,8 @@ class PitcheeAnalyzer private constructor(private var nativeHandle: Long) : Clos
         }
 
         fun create(modelDirectory: String, threads: Int = 2): PitcheeAnalyzer {
-            require(modelDirectory.isNotBlank()) { "modelDirectory must not be blank" }
-            require(threads > 0) { "threads must be positive" }
+            require(modelDirectory.isNotBlank())
+            require(threads > 0)
             return PitcheeAnalyzer(nativeCreate(modelDirectory, threads))
         }
 
@@ -241,8 +237,8 @@ class PitcheeRealtimeF0 internal constructor(
         samples: FloatArray,
         onFrame: PitcheeF0FrameCallback,
     ): Long {
-        check(nativeHandle != 0L) { "PitcheeRealtimeF0 is closed" }
-        require(samples.isNotEmpty()) { "PCM buffer must not be empty" }
+        check(nativeHandle != 0L)
+        require(samples.isNotEmpty())
         return nativeProcess(nativeHandle, samples, onFrame)
     }
 

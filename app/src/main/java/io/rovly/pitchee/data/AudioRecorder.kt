@@ -3,6 +3,7 @@ package io.rovly.pitchee.data
 import android.content.Context
 import android.media.MediaRecorder
 import android.os.Build
+import io.rovly.pitchee.R
 import java.io.File
 import kotlin.math.sqrt
 
@@ -11,7 +12,7 @@ class AudioRecorder(private val context: Context) {
     private var outputFile: File? = null
 
     fun start() {
-        check(recorder == null) { "Audio recorder is already running" }
+        check(recorder == null) { context.getString(R.string.error_audio_recorder_running) }
         val target = File.createTempFile("pitchee-", ".m4a", context.cacheDir)
         val mediaRecorder = createMediaRecorder()
         try {
@@ -34,15 +35,15 @@ class AudioRecorder(private val context: Context) {
     }
 
     fun stop(): File {
-        val mediaRecorder = checkNotNull(recorder) { "Audio recorder is not running" }
-        val target = checkNotNull(outputFile) { "Recording output is missing" }
+        val mediaRecorder = checkNotNull(recorder) { context.getString(R.string.error_audio_recorder_not_running) }
+        val target = checkNotNull(outputFile) { context.getString(R.string.error_recording_output_missing) }
         recorder = null
         outputFile = null
         try {
             mediaRecorder.stop()
         } catch (error: RuntimeException) {
             target.delete()
-            throw IllegalStateException("录音时间太短，请至少录制 1 秒", error)
+            throw IllegalStateException(context.getString(R.string.error_recording_short), error)
         } finally {
             mediaRecorder.release()
         }
