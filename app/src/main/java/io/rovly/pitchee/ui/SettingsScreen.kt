@@ -359,6 +359,7 @@ internal fun SettingsScreen(
             R.string.settings_license_onnxruntime,
             R.string.settings_license_androidx,
             R.string.settings_license_markwon,
+            R.string.settings_license_material_icons,
         ).forEach { license ->
             Text(
                 text = stringResource(license),

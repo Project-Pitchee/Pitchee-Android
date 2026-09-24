@@ -92,4 +92,5 @@ Pitchee Android 整体以 **GPL-3.0-only** 发布，许可证全文见 [`LICENSE
 | ONNX Runtime | MIT | <https://github.com/microsoft/onnxruntime> |
 | AndroidX / Jetpack Compose | Apache-2.0 | <https://github.com/androidx/androidx> |
 | Markwon | Apache-2.0 | <https://github.com/noties/Markwon> |
+| Material Symbols | Apache-2.0 | <https://github.com/google/material-design-icons> |
 | JLaTeXMath-Android | GPL-2.0 | <https://github.com/noties/jlatexmath-android> |

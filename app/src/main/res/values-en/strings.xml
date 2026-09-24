@@ -310,4 +310,5 @@ Final is the displayed composite score.</string>
     <string name="settings_pitchee_core_url">https://github.com/project-pitchee/Pitchee-core</string>
     <string name="settings_author_lvy_url">https://github.com/HaoduyouduDev</string>
     <string name="settings_author_ryo_url">https://github.com/RyouDYFZ</string>
+    <string name="settings_license_material_icons">Material Symbols (Apache-2.0)</string>
 </resources>
