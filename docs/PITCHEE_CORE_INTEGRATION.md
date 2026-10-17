@@ -3,24 +3,27 @@
 ## 1. 集成基线
 
 - 上游仓库：`https://github.com/project-pitchee/Pitchee-core`
-- 集成提交：`4e571f45336371b3ddde5a051621005e84562d46`
-- 上游版本：PitcheeCore `0.1.0`
-- 模型版本：`2026-09`
-- ONNX Runtime：Android `1.24.2`
+- 集成提交：`8613b6a0c4c969ff41a2fdfdc7666c79b1109a2d`（Voice Health 判定线调整）
+- 上游版本：PitcheeCore `0.5.0`
+- 模型版本：`2026-10-ncnn-fp16`
+- Android 推理后端：ncnn（不再依赖 ONNX Runtime）
 - Android NDK：`26.3.11579264`
 - CMake：`3.22.1`
 - 最低 Android API：24
 - 当前打包 ABI：`arm64-v8a`、`x86_64`
 
-上游源码和模型被放在 `third_party/Pitchee-core/`。当前集成为 `4e571f4`：
-- `399fe8b` 将高 F0、低自然度封顶从 45 降到 30。
-- `2644fe9` 改为直接使用原生 VAD 时间轴窗口，短语音不再补零。
-- `b4d642a` 让自然度窗口与 VFP 窗口一一对应，并更新 ECAPA 模型。
-- `e9bdd3c` 增加复用 SwiftF0 session 的实时 F0 流式接口。
-- `e3b77aa` 将 F0 时间轴窗口从 `0.1` 秒加密到 `0.05` 秒，并增加三指标便捷评分函数。
-- `4e571f4` 增加独立的实时 STFT 频谱流、频率汇总指标和 Android JNI 接入。
-旧 phase callback 和详细 progress callback 均保持兼容。上游项目没有 Git tag，
-因此提交号是当前唯一可复现的版本标识。
+上游源码和模型被放在 `third_party/Pitchee-core/`。当前基线已经包含：
+- `8759d93` / `9bbcdb1`：Android 迁移到 ncnn，统一为 ModelRuntime。
+- `036fb7a` / `b08bb75`：ECAPA ncnn 权重改为 FP16，并修正体积校验。
+- `438884a`：优化 ncnn SwiftF0 STFT。
+- `deed876`：增加 HNR 声质分析结果。
+- `16d86e0`：增加实时 F0 options、metadata、warmup 和 stats 接口。
+- `8abafd8` / `8885783` / `d83b8ed`：加入独立 Voice Health 分析，并从综合
+  bundle JSON 中拆出。
+- `c7a1aa3` / `8613b6a`：Voice Health 判定线调整到 50 分对应阈值，最终以
+  health score `30` 作为是否沙哑的判断线。
+
+上游项目没有 Git tag，因此提交号是当前唯一可复现的版本标识。
 
 ## 2. 工程结构
 
@@ -387,3 +390,125 @@ Android 的 `MediaRecorder` 不提供实时 PCM，因此实时页使用单独的
 
 自动测试中的语音是由 macOS `say` 生成的合成测试音频，只用于验证接口和
 数据链路，不代表评分模型的质量或业务阈值。
+
+## ncnn 迁移（Android 统一改为 ncnn 推理）
+
+上游在 `8759d93`（Android backend ncnn-only）、`9bbcdb1`（runtime 抽象改名）两个
+提交里把 Android 端从 ONNX Runtime 换成了 ncnn，`include/pitchee/pitchee.h` 的
+公开 C API 没有变化，所以 JNI 和 Kotlin 绑定不需要改，改动集中在构建和模型。
+
+### 1. 推理后端
+
+- `src/ort_runtime.*` 被删除，换成 `src/model_runtime.*` 加
+  `src/ncnn_pitchee_layers.*`（Core 自己注册的轻量自定义层）。
+- Android 构建会强制 `PITCHEE_ENABLE_ORT=OFF`，必须
+  `-DPITCHEE_ENABLE_NCNN=ON`，否则 CMake 直接报错。
+- 桌面端仍然可以用 ONNX Runtime 构建，两端不再共用同一套后端。
+
+### 2. ncnn 依赖
+
+Core 只通过三个变量找 ncnn，不负责下载：
+
+| 变量 | 本项目取值 |
+| --- | --- |
+| `PITCHEE_NCNN_INCLUDE_DIR` | `third_party/ncnn-android/<abi>/include` |
+| `PITCHEE_NCNN_LIBRARY` | `third_party/ncnn-android/<abi>/lib/libncnn.a` |
+| `PITCHEE_NCNN_ROOT` | `third_party/ncnn-android`（由 app 的 CMakeLists 展开到 ABI 子目录） |
+
+用的是官方发布包 `ncnn-20260526-android.zip`（静态库、无 Vulkan），只保留
+`arm64-v8a` 和 `x86_64` 两个 ABI，`libncnn.a` 随 APK 静态链接进
+`libpitchee_core.so`，不需要额外打包 `.so`。
+
+### 3. OpenMP
+
+Core 在 ncnn 分支里链接 `-fopenmp`，而 NDK 的 OpenMP 运行时是共享库，直接链接
+会要求 APK 里再带一个 `libomp.so`。这里改成加 `-static-openmp` 把运行时静态
+链接进 `libpitchee_core.so`，省掉一个额外 `.so`，也避免和系统库冲突。
+
+### 4. 模型
+
+- 六个模型全部换成 `.ncnn.param` + `.ncnn.bin`，manifest 版本是 `2026-10-ncnn`。
+- Android 只打包 ncnn 模型；仓库里的 `.onnx` 原文件已从
+  `third_party/Pitchee-core/models/` 删除，否则它们会跟着 assets 一起进 APK，
+  体积翻倍。
+- 模型缓存版本同步改成 `2026-10-ncnn`，升级后会重新拷贝一次模型。
+- 上游在 `036fb7a` 把 `ECAPA.ncnn.bin` 改成 FP16 存储（其余 ncnn 模型仍是
+  FP32）：83 MB → 42 MB，ncnn 加载时会展开成 FP32 参与计算，属于存储压缩
+  而非 FP16 推理。manifest 版本随之变成 `2026-10-ncnn-fp16`。
+- 上游用同一批 10 段 WAV 在 ANA-AN00 上对比过两种权重，综合分平均偏差
+  0.0082、最大 0.0579（见 `docs/ECAPA_FP16_VALIDATION.md`），所以精度差异
+  可以忽略。
+- `arm64-v8a` debug APK 从 104 MB 降到 **66 MB**，和迁移前的 ONNX 版本
+  （约 60 MB）基本持平。
+
+### 5. 验证
+
+- 构建：`arm64-v8a` 与 `x86_64` 均可通过 `:app:assembleDebug`。
+- APK 内容：`assets/` 只有 `.ncnn.param/bin` 和 manifest，`lib/` 只有
+  `libpitchee_core.so`、`libpitchee_core_jni.so`，没有 `libonnxruntime.so`
+  和 `libomp.so`。
+- 模拟器上用 macOS `say` 合成的语音跑通完整链路：
+  `ncnn backend: ...` 六个模型全部加载，`Analysis completed` 报出
+  6.77 秒有效语音、40 个窗口和综合分。
+- 实时音高频谱：把置信度阈值调低后能看到稳定输出的基频轨迹，说明 ncnn 版
+  SwiftF0 正常工作。
+
+## 实时 F0 的 ncnn 性能修复（`438884a`）
+
+换到 ncnn 之后，真机上实时音高会卡顿（模拟器正常）。原因是实时流的推理耗时
+超过了 hop：
+
+- 实时流按 SwiftF0 的 hop 触发（默认 256 采样 = 16ms），每次都要把整个
+  `context_samples`（默认 5120 = 320ms）跑一遍模型；
+- 真机上单次推理一度需要 45ms（埋点当时写错了除数，修正后约 22ms），远超
+  16ms 预算，读循环追不上麦克风，数据就积压成一阵一阵的更新。
+
+上游 `438884a` 优化了 ncnn 的 SwiftF0 STFT 自定义层：预计算窗函数、旋转因子
+表和位反转索引，FFT 从 `std::complex<double>` 改成 float 实现，去掉了每次调用
+的堆分配。
+
+用同一台真机（VEG0220811002435，静音，16ms hop）实测单次推理耗时：
+
+| 版本 | 单次推理 | 相对 16ms 预算 |
+| --- | --- | --- |
+| 修复前 `b08bb75` | 17–18ms | 超预算，会积压 |
+| 修复后 `438884a` | 14–16ms（偶发 20ms） | 刚好卡在预算内 |
+
+也就是说修复把实时推理从"追不上"推进到"刚好跟上"，真机上不再积压。余量只有
+1～2ms，如果之后再加 UI 负担又出现卡顿，可以按显示帧率放大 hop（30Hz → hop
+512 采样），把推理次数直接减半。
+
+埋点位置：`PitchViewModel` 里的 `PitchPerf` 日志（每 60 次推理输出一行），
+不需要时删掉即可。
+
+## 实时 F0 输出契约与 Voice Health（`16d86e0` → `8613b6a`）
+
+上游新增 `pitchee_realtime_f0_create_with_options()`、metadata、warmup 和 stats
+接口，并加入 HNR 声质分析数据。Android 侧的处理如下：
+
+- 分析器创建实时流时传入 `PITCHEE_REALTIME_F0_OPTIONS_VERSION`、上下文窗口、
+  推理 hop、用户设置的 `output_rate_hz` 和起始时间戳。
+- 回调帧率由 Core 按 `output_rate_hz` 稳定选择，不再由 App 读取固定的
+  `256 / 16000` 模型 hop 后自行降采样。
+- 创建流后先调用 `pitchee_realtime_f0_warmup()`，避免第一次录音时把 ncnn
+  初始化延迟暴露给用户。
+- `PitcheeRealtimeF0` 暴露 `metadata()`、`warmup()` 和 `stats()`，后续可以直接
+  读取 Core 的模型帧间隔、有效输出帧率以及 preprocess/model/postprocess 耗时。
+- 实时流的上下文窗口在创建后固定为 160ms。Core 文档也明确：改变 context 或
+  inference hop 必须重新创建 stream，不能在运行中修改输入 shape。
+- HNR 已改为独立模块。综合 bundle JSON 不再固定包含 `voice_quality`；
+  `PitcheeResult` 仍保留可选解析，兼容之前生成的历史 Schema 4 数据。
+- Android JNI 已接入 `pitchee_analyzer_detect_vad()` 和
+  `pitchee_analysis_run_voice_health()`。`PitcheeRepository` 提供
+  `detectVad()` 和 `analyzeVoiceHealth()`，返回 Health Score、
+  disorder_probability、decision_threshold 和 14 项声学特征。
+
+真机 `VEG0220811002435`、ncnn、160ms 上下文、默认 30Hz 输出实测：
+
+```text
+F0 output ≈ 30–31/s
+12 秒 UI 采样：726 帧，Janky 3 帧（0.41%）
+```
+
+Voice Health 的 Android 数据层已经接入，UI 尚未接入；后续可以直接在
+`PitcheeRepository.analyzeVoiceHealth()` 上做页面和结果展示。

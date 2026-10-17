@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(
     PitcheeCore
-    VERSION 0.1.0
+    VERSION 0.5.0
     DESCRIPTION "Cross-platform on-device voice analysis core"
     LANGUAGES C CXX
 )
@@ -17,9 +17,21 @@ option(PITCHEE_BUILD_SHARED "Build pitchee_core as a shared library" ON)
 option(PITCHEE_BUILD_CLI "Build the desktop validation CLI" ON)
 option(PITCHEE_BUILD_TESTS "Build core tests" ON)
 option(PITCHEE_ENABLE_ORT "Enable ONNX Runtime model inference" ON)
+option(PITCHEE_ENABLE_NCNN "Enable the Android ncnn model backend" OFF)
+option(PITCHEE_NCNN_VULKAN "Enable ncnn Vulkan GPU support" OFF)
 set(PITCHEE_ORT_ROOT "" CACHE PATH "Directory containing ONNX Runtime headers and libraries")
 set(PITCHEE_ORT_INCLUDE_DIR "" CACHE PATH "Explicit ONNX Runtime include directory")
 set(PITCHEE_ORT_LIBRARY "" CACHE FILEPATH "Explicit ONNX Runtime library path")
+set(PITCHEE_NCNN_ROOT "" CACHE PATH "Directory containing ncnn headers and libraries")
+set(PITCHEE_NCNN_INCLUDE_DIR "" CACHE PATH "Explicit ncnn include directory")
+set(PITCHEE_NCNN_LIBRARY "" CACHE FILEPATH "Explicit ncnn library path")
+
+if(ANDROID)
+    set(PITCHEE_ENABLE_ORT OFF CACHE BOOL "Android builds are ncnn-only" FORCE)
+    if(NOT PITCHEE_ENABLE_NCNN)
+        message(FATAL_ERROR "Android builds require PITCHEE_ENABLE_NCNN=ON")
+    endif()
+endif()
 
 if(PITCHEE_BUILD_SHARED)
     set(PITCHEE_LIBRARY_TYPE SHARED)
@@ -30,12 +42,14 @@ endif()
 add_library(pitchee_core ${PITCHEE_LIBRARY_TYPE}
     src/analyzer.cpp
     src/audio.cpp
+    src/hnr.cpp
     src/json.cpp
     src/naturalness.cpp
-    src/ort_runtime.cpp
+    src/model_runtime.cpp
     src/scoring.cpp
     src/spectrum.cpp
     src/vad.cpp
+    src/voice_health.cpp
     src/wav_reader.cpp
 )
 
@@ -107,6 +121,70 @@ if(PITCHEE_ENABLE_ORT)
     endif()
 endif()
 
+if(PITCHEE_ENABLE_NCNN)
+    if(NOT ANDROID)
+        message(FATAL_ERROR "PITCHEE_ENABLE_NCNN is currently Android-only")
+    endif()
+
+    if(PITCHEE_NCNN_INCLUDE_DIR)
+        set(PITCHEE_NCNN_INCLUDE "${PITCHEE_NCNN_INCLUDE_DIR}")
+    else()
+        find_path(PITCHEE_NCNN_INCLUDE ncnn/net.h
+            HINTS
+                "${PITCHEE_NCNN_ROOT}/include"
+                "$ENV{NCNN_ROOT}/include"
+        )
+    endif()
+
+    if(PITCHEE_NCNN_LIBRARY)
+        set(PITCHEE_NCNN_LIB "${PITCHEE_NCNN_LIBRARY}")
+    else()
+        find_library(PITCHEE_NCNN_LIB
+            NAMES ncnn
+            HINTS
+                "${PITCHEE_NCNN_ROOT}/lib"
+        )
+    endif()
+
+    if(NOT PITCHEE_NCNN_INCLUDE OR NOT PITCHEE_NCNN_LIB)
+        message(FATAL_ERROR "ncnn headers or library were not found")
+    endif()
+
+    find_library(ANDROID_LOG_LIBRARY log REQUIRED)
+    find_library(ANDROID_LIBRARY android REQUIRED)
+    find_library(DL_LIBRARY dl REQUIRED)
+    target_include_directories(pitchee_core PRIVATE "${PITCHEE_NCNN_INCLUDE}")
+    target_sources(pitchee_core PRIVATE src/ncnn_pitchee_layers.cpp)
+    target_compile_options(pitchee_core PRIVATE -fno-rtti)
+    target_link_libraries(pitchee_core PRIVATE
+        "${PITCHEE_NCNN_LIB}"
+        "${ANDROID_LOG_LIBRARY}"
+        "${ANDROID_LIBRARY}"
+        "${DL_LIBRARY}"
+        -fopenmp
+    )
+    target_compile_definitions(pitchee_core PRIVATE PITCHEE_ENABLE_NCNN=1)
+    if(PITCHEE_NCNN_VULKAN)
+        get_filename_component(PITCHEE_NCNN_LIBRARY_DIR "${PITCHEE_NCNN_LIB}" DIRECTORY)
+        find_library(VULKAN_LIBRARY vulkan REQUIRED)
+        set(PITCHEE_NCNN_VULKAN_DEPS
+            "${PITCHEE_NCNN_LIBRARY_DIR}/libglslang.a"
+            "${PITCHEE_NCNN_LIBRARY_DIR}/libSPIRV.a"
+            "${PITCHEE_NCNN_LIBRARY_DIR}/libMachineIndependent.a"
+            "${PITCHEE_NCNN_LIBRARY_DIR}/libGenericCodeGen.a"
+            "${PITCHEE_NCNN_LIBRARY_DIR}/libOSDependent.a"
+            "${PITCHEE_NCNN_LIBRARY_DIR}/libglslang-default-resource-limits.a"
+            "${VULKAN_LIBRARY}"
+        )
+        target_link_libraries(pitchee_core PRIVATE ${PITCHEE_NCNN_VULKAN_DEPS})
+        target_compile_definitions(pitchee_core PRIVATE PITCHEE_NCNN_VULKAN=1)
+        message(STATUS "PitcheeCore: ncnn Vulkan support enabled")
+    endif()
+    message(STATUS "PitcheeCore: Android ncnn backend enabled")
+    message(STATUS "  include: ${PITCHEE_NCNN_INCLUDE}")
+    message(STATUS "  library: ${PITCHEE_NCNN_LIB}")
+endif()
+
 if(APPLE)
     target_link_libraries(pitchee_core PRIVATE
         "-framework Foundation"
@@ -116,8 +194,25 @@ if(APPLE)
     )
 endif()
 
+if(ANDROID)
+    target_link_options(pitchee_core PUBLIC "-Wl,-z,max-page-size=16384")
+    target_link_options(pitchee_core PUBLIC "-static-openmp")
+endif()
+
 if(PITCHEE_BUILD_CLI)
-    add_executable(pitchee_cli tools/pitchee_cli.cpp)
+    if(APPLE)
+        enable_language(OBJCXX)
+        add_executable(pitchee_cli
+            tools/pitchee_cli.cpp
+            tools/mac_recorder.mm
+        )
+        target_link_libraries(pitchee_cli PRIVATE
+            "-framework AVFoundation"
+            "-framework Foundation"
+        )
+    else()
+        add_executable(pitchee_cli tools/pitchee_cli.cpp)
+    endif()
     target_link_libraries(pitchee_cli PRIVATE pitchee_core)
 endif()
 
@@ -137,9 +232,34 @@ if(PITCHEE_BUILD_TESTS)
     target_include_directories(pitchee_json_test PRIVATE src)
     add_test(NAME pitchee_json_test COMMAND pitchee_json_test)
 
+    add_executable(pitchee_hnr_test tests/hnr_test.cpp src/hnr.cpp)
+    target_compile_features(pitchee_hnr_test PRIVATE cxx_std_17)
+    target_compile_definitions(pitchee_hnr_test PRIVATE PITCHEE_STATIC=1)
+    target_include_directories(pitchee_hnr_test PRIVATE src include)
+    add_test(NAME pitchee_hnr_test COMMAND pitchee_hnr_test)
+
+    add_executable(pitchee_hnr_header_test tests/hnr_header_test.c src/hnr.cpp)
+    target_compile_features(pitchee_hnr_header_test PRIVATE cxx_std_17)
+    target_compile_definitions(pitchee_hnr_header_test PRIVATE PITCHEE_STATIC=1)
+    target_include_directories(pitchee_hnr_header_test PRIVATE include)
+    add_test(NAME pitchee_hnr_header_test COMMAND pitchee_hnr_header_test)
+
     add_executable(pitchee_spectrum_test tests/spectrum_test.cpp)
     target_link_libraries(pitchee_spectrum_test PRIVATE pitchee_core)
     add_test(NAME pitchee_spectrum_test COMMAND pitchee_spectrum_test)
+
+    add_executable(pitchee_realtime_f0_test tests/realtime_f0_test.cpp)
+    target_link_libraries(pitchee_realtime_f0_test PRIVATE pitchee_core)
+    add_test(
+        NAME pitchee_realtime_f0_test
+        COMMAND pitchee_realtime_f0_test
+            "${CMAKE_CURRENT_SOURCE_DIR}/models"
+    )
+
+    add_executable(pitchee_wav_reader_test tests/wav_reader_test.cpp src/wav_reader.cpp)
+    target_compile_features(pitchee_wav_reader_test PRIVATE cxx_std_17)
+    target_include_directories(pitchee_wav_reader_test PRIVATE src)
+    add_test(NAME pitchee_wav_reader_test COMMAND pitchee_wav_reader_test)
 
     add_executable(pitchee_c_abi_test tests/c_abi_test.c)
     target_link_libraries(pitchee_c_abi_test PRIVATE pitchee_core)

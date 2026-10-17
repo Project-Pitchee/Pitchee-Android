@@ -1,10 +1,10 @@
 package io.rovly.pitchee.update
 
 import android.os.Build
+import io.rovly.pitchee.R
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
-import io.rovly.pitchee.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray

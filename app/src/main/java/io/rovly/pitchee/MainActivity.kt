@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import io.rovly.pitchee.ui.AppLanguage
+import io.rovly.pitchee.feature.settings.AppLanguage
 import io.rovly.pitchee.ui.PitcheeApp
 import io.rovly.pitchee.ui.theme.PitcheeTheme
 

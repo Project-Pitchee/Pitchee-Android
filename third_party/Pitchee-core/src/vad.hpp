@@ -2,7 +2,7 @@
 #define PITCHEE_VAD_HPP
 
 #include "internal.hpp"
-#include "ort_runtime.hpp"
+#include "model_runtime.hpp"
 
 #include <filesystem>
 #include <functional>
@@ -23,7 +23,13 @@ public:
     ) const;
 
 private:
-    std::unique_ptr<OrtModel> model_;
+    VadResult detect_light(
+        const std::vector<float>& samples,
+        const std::function<void(size_t, size_t)>& progress
+    ) const;
+
+    bool lightweight_ = false;
+    std::unique_ptr<ModelRuntime> model_;
 };
 
 }  // namespace pitchee

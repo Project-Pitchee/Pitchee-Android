@@ -6,7 +6,11 @@
         <item name="colorSecondary">#FFE4BDC7</item>
         <item name="colorSecondaryVariant">#FFEFB8CA</item>
         <item name="colorOnSecondary">#FF432A32</item>
-        <item name="android:statusBarColor">@color/pitchee_pink_dark</item>
-        <item name="android:navigationBarColor">#FF191113</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">#FF1B120F</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowAnimationStyle">@style/Animation.Pitchee.Activity</item>
     </style>
 </resources>

@@ -2,21 +2,27 @@ package io.rovly.pitchee.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val LightColors = lightColorScheme(
-    primary = Color(0xFFCD5B2E),
+    primary = Color(0xFFD96A3E),
     onPrimary = Color(0xFF2E0D00),
     primaryContainer = Color(0xFFFFDCCF),
     onPrimaryContainer = Color(0xFF3A1000),
-    inversePrimary = Color(0xFFFFB59A),
+    inversePrimary = PitcheeColorTokens.DarkToolbarCollapsedBackground,
     secondary = Color(0xFF3F6C68),
     onSecondary = Color(0xFFFFFFFF),
     secondaryContainer = Color(0xFFC0ECE6),
@@ -50,8 +56,8 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFFFFB59A),
-    onPrimary = Color(0xFF5A1B00),
+    primary = PitcheeColorTokens.DarkToolbarCollapsedBackground,
+    onPrimary = PitcheeColorTokens.DarkToolbarCollapsedContent,
     primaryContainer = Color(0xFF7E2E10),
     onPrimaryContainer = Color(0xFFFFDCCF),
     inversePrimary = Color(0xFFCD5B2E),
@@ -64,9 +70,9 @@ private val DarkColors = darkColorScheme(
     tertiaryContainer = Color(0xFF584700),
     onTertiaryContainer = Color(0xFFFFE49A),
     background = Color(0xFF1B120F),
-    onBackground = Color(0xFFF1DFD8),
+    onBackground = PitcheeColorTokens.DarkToolbarContent,
     surface = Color(0xFF1B120F),
-    onSurface = Color(0xFFF1DFD8),
+    onSurface = PitcheeColorTokens.DarkToolbarContent,
     surfaceVariant = Color(0xFF53433D),
     onSurfaceVariant = Color(0xFFD8C2BA),
     surfaceDim = Color(0xFF1B120F),
@@ -74,9 +80,9 @@ private val DarkColors = darkColorScheme(
     surfaceContainerLowest = Color(0xFF150D0B),
     surfaceContainerLow = Color(0xFF241916),
     surfaceContainer = Color(0xFF281D1A),
-    surfaceContainerHigh = Color(0xFF332724),
+    surfaceContainerHigh = PitcheeColorTokens.DarkToolbarBackground,
     surfaceContainerHighest = Color(0xFF3E312D),
-    inverseSurface = Color(0xFFF1DFD8),
+    inverseSurface = PitcheeColorTokens.DarkToolbarContent,
     inverseOnSurface = Color(0xFF382E2B),
     outline = Color(0xFFA08C84),
     outlineVariant = Color(0xFF53433D),
@@ -86,6 +92,126 @@ private val DarkColors = darkColorScheme(
     onErrorContainer = Color(0xFFFFDAD6),
     scrim = Color(0xFF000000),
 )
+
+private val PitcheeShapes = Shapes(
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(PitcheeShapeTokens.CardRadius),
+    extraLarge = RoundedCornerShape(28.dp),
+)
+
+object PitcheeShapeTokens {
+    /** Card / panel radius used across the app (dashboard cards, result cards). */
+    val CardRadius = 16.dp
+    val PlayerCollapsedRadius = 26.dp
+    val PlayerExpandedRadius = CardRadius
+}
+
+object PitcheeColorTokens {
+    val Feminine = Color(0xFFFFB6C1)
+    val FeminineContent = Color(0xFF3A1F2A)
+    val Masculine = Color(0xFF6495ED)
+    val MasculineContent = Color(0xFF102443)
+    val SpectrumPink = Color(0xFFE75480)
+    val Success = Color(0xFF1F6F43)
+    val SuccessContainer = Color(0xFFD9EBDD)
+    val SuccessContainerDark = Color(0xFF133D29)
+    val SuccessContentDark = Color(0xFFB8E6C6)
+    val Danger = Color(0xFF8E1B2E)
+    val DangerContainer = Color(0xFFF4D8DD)
+    val DangerContainerDark = Color(0xFF5A1723)
+    val DangerContentDark = Color(0xFFFFD6DC)
+    val Warning = Color(0xFFF08C32)
+    val Info = Color(0xFF3B82F6)
+    val InsightTeal = Color(0xFF25A6A0)
+    val InsightPurple = Color(0xFF8B6FD6)
+    val InsightGreen = Color(0xFF2F8F5B)
+    val InsightRed = Color(0xFFC34A4A)
+    val InsightAmber = Color(0xFFC98A3C)
+    val SpectrumBackground = Color(0xFF111827)
+    val SpectrumBlue = Color(0xFF2357D8)
+    val SpectrumCyan = Color(0xFF19B9C8)
+    val SpectrumHigh = Color(0xFFFFD9A0)
+    val SpectrumAxis = Color(0xFFB9C2D0)
+    val DarkToolbarBackground = Color(0xFF332724)
+    val DarkToolbarContent = Color(0xFFF1DFD8)
+    val DarkToolbarCollapsedBackground = Color(0xFFFFB59A)
+    val DarkToolbarCollapsedContent = Color(0xFF5A1B00)
+    val PlayerBackgroundLight = Color(0xFFE4F0FF)
+    val PlayerBackgroundDark = Color(0xFF172A46)
+    val PlayerContentLight = Color(0xFF16345C)
+    val PlayerContentDark = Color(0xFFEAF3FF)
+    val PlayerAccentLight = Color(0xFF3B82F6)
+    val PlayerAccentDark = Color(0xFF7DB3FF)
+    val PlayerSurfaceDark = Color(0xFF253247)
+    val WaveformLight = Color(0xFFD6E6FF)
+    val WaveformDark = Color(0xFF20344F)
+    val WaveformMuted = Color(0xFF8C98AA)
+    val WaveformMutedSoft = Color(0xFF7C8799)
+    val NeutralScore = Color(0xFF9CA3AF)
+    val ScoreLow = Color(0xFFD55362)
+    val ScoreLowMid = Color(0xFFE47A36)
+    val ScoreMid = Color(0xFFD9B53D)
+    val ScoreHighMid = Color(0xFF57A773)
+    val ScoreHigh = Color(0xFF168C80)
+    val QuadrantEunuch = Color(0xFF7B1F2D)
+    val QuadrantMale = Color(0xFF244B9B)
+    val QuadrantFemale = Color(0xFF9B2353)
+    val QuadrantNeutralFeminine = Color(0xFF146B66)
+}
+@Immutable
+data class PitcheeExtendedColors(
+    val feminine: Color,
+    val feminineContent: Color,
+    val masculine: Color,
+    val masculineContent: Color,
+    val success: Color,
+    val danger: Color,
+    val warning: Color,
+    val info: Color,
+    val spectrumBackground: Color,
+    val spectrumBlue: Color,
+    val spectrumCyan: Color,
+    val spectrumPink: Color,
+    val spectrumHigh: Color,
+    val playerBackground: Color,
+    val playerContent: Color,
+    val playerAccent: Color,
+    val playerAccentContent: Color,
+    val insightTeal: Color,
+    val insightPurple: Color,
+    val insightGreen: Color,
+    val insightRed: Color,
+)
+
+private val LocalPitcheeExtendedColors = staticCompositionLocalOf<PitcheeExtendedColors> {
+    error("PitcheeExtendedColors not provided")
+}
+
+val MaterialTheme.pitcheeColors: PitcheeExtendedColors
+    @Composable get() = LocalPitcheeExtendedColors.current
+
+val Typography.metricHero: TextStyle
+    get() = displayMedium.copy(
+        fontSize = 44.sp,
+        lineHeight = 46.sp,
+        fontWeight = FontWeight.Bold,
+    )
+
+val Typography.metricLarge: TextStyle
+    get() = headlineMedium.copy(
+        fontSize = 30.sp,
+        lineHeight = 34.sp,
+        fontWeight = FontWeight.Bold,
+    )
+
+val Typography.metricMedium: TextStyle
+    get() = headlineSmall.copy(
+        fontSize = 28.sp,
+        lineHeight = 30.sp,
+        fontWeight = FontWeight.Bold,
+    )
 
 private val PitcheeTypography = Typography(
     displayLarge = TextStyle(
@@ -180,14 +306,49 @@ private val PitcheeTypography = Typography(
     ),
 )
 
+private val LightExtendedColors = PitcheeExtendedColors(
+    feminine = PitcheeColorTokens.Feminine,
+    feminineContent = PitcheeColorTokens.FeminineContent,
+    masculine = PitcheeColorTokens.Masculine,
+    masculineContent = PitcheeColorTokens.MasculineContent,
+    success = PitcheeColorTokens.Success,
+    danger = PitcheeColorTokens.Danger,
+    warning = PitcheeColorTokens.Warning,
+    info = PitcheeColorTokens.Info,
+    spectrumBackground = PitcheeColorTokens.SpectrumBackground,
+    spectrumBlue = PitcheeColorTokens.SpectrumBlue,
+    spectrumCyan = PitcheeColorTokens.SpectrumCyan,
+    spectrumPink = PitcheeColorTokens.SpectrumPink,
+    spectrumHigh = PitcheeColorTokens.SpectrumHigh,
+    playerBackground = PitcheeColorTokens.PlayerBackgroundLight,
+    playerContent = PitcheeColorTokens.PlayerContentLight,
+    playerAccent = PitcheeColorTokens.Info,
+    playerAccentContent = Color.White,
+    insightTeal = PitcheeColorTokens.InsightTeal,
+    insightPurple = PitcheeColorTokens.InsightPurple,
+    insightGreen = PitcheeColorTokens.InsightGreen,
+    insightRed = PitcheeColorTokens.InsightRed,
+)
+
+private val DarkExtendedColors = LightExtendedColors.copy(
+    playerBackground = PitcheeColorTokens.PlayerBackgroundDark,
+    playerContent = PitcheeColorTokens.PlayerContentDark,
+    playerAccent = PitcheeColorTokens.PlayerAccentDark,
+    playerAccentContent = PitcheeColorTokens.MasculineContent,
+)
+
 @Composable
 fun PitcheeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
-        typography = PitcheeTypography,
-        content = content,
-    )
+    val extendedColors = if (darkTheme) DarkExtendedColors else LightExtendedColors
+    CompositionLocalProvider(LocalPitcheeExtendedColors provides extendedColors) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) DarkColors else LightColors,
+            typography = PitcheeTypography,
+            shapes = PitcheeShapes,
+            content = content,
+        )
+    }
 }

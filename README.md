@@ -24,11 +24,12 @@ Nightly 测试版也发布在同一页面，标识为 **Pre-release**。
 
 ### 仪表盘
 
-查看实时基频监测的平均 F0，以及保存的声音分析记录。
+查看分析次数、打开天数、综合分、自然度、F0 和音色的变化。
 
-- 可以查看 F0、自然度、标准音色和综合分轨迹。
-- 分析记录支持置顶、左滑删除和重新打开查看。
-- “我的平均 F0”可以重置。
+- 可以切换最近 7 天、30 天、90 天或全部记录。
+- 综合分和指标卡会显示当前值、平均基线及趋势。
+- F0 卡片中的平均基线可以通过 Reset 重置。
+- 点击摘要卡进入分析记录；记录支持置顶、左滑删除和重新打开查看。
 
 ### 基频
 
@@ -67,6 +68,12 @@ Nightly 测试版也发布在同一页面，标识为 **Pre-release**。
 - 分析和录音历史保存在设备本地。
 - 应用更新通过 GitHub Release 获取。
 
+## 开发安装
+
+Android Studio 运行应用或执行 `./gradlew installDebug` 时，会先调用
+`scripts/keep-data-uninstall.sh`。脚本通过
+`cmd package uninstall -k` 删除应用包并保留数据目录，随后正常安装新的 Debug APK。
+
 ## 作者
 
 - [Lvy Zhan](https://github.com/HaoduyouduDev)
@@ -76,6 +83,7 @@ Nightly 测试版也发布在同一页面，标识为 **Pre-release**。
 
 - Pitchee Android：<https://github.com/project-pitchee/Pitchee-Android>
 - PitcheeCore：<https://github.com/project-pitchee/Pitchee-core>
+- 项目结构：[docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
 
 ## 开源引用与许可证
 
@@ -89,7 +97,7 @@ Pitchee Android 整体以 **GPL-3.0-only** 发布，许可证全文见 [`LICENSE
 | SwiftF0 | MIT | <https://github.com/lars76/swift-f0> |
 | Silero VAD | MIT | <https://github.com/snakers4/silero-vad> |
 | SpeechBrain | Apache-2.0 | <https://github.com/speechbrain/speechbrain> |
-| ONNX Runtime | MIT | <https://github.com/microsoft/onnxruntime> |
+| ncnn | BSD-3-Clause | <https://github.com/Tencent/ncnn> |
 | AndroidX / Jetpack Compose | Apache-2.0 | <https://github.com/androidx/androidx> |
 | Markwon | Apache-2.0 | <https://github.com/noties/Markwon> |
 | Material Symbols | Apache-2.0 | <https://github.com/google/material-design-icons> |

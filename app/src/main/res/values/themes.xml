@@ -6,7 +6,18 @@
         <item name="colorSecondary">@color/pitchee_secondary</item>
         <item name="colorSecondaryVariant">@color/pitchee_secondary</item>
         <item name="colorOnSecondary">@color/white</item>
-        <item name="android:statusBarColor">@color/pitchee_pink_dark</item>
-        <item name="android:navigationBarColor">@color/pitchee_surface</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">@color/pitchee_surface</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowAnimationStyle">@style/Animation.Pitchee.Activity</item>
+    </style>
+
+    <style name="Animation.Pitchee.Activity" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/pitchee_fade_in</item>
+        <item name="android:activityOpenExitAnimation">@anim/pitchee_hold</item>
+        <item name="android:activityCloseEnterAnimation">@anim/pitchee_hold</item>
+        <item name="android:activityCloseExitAnimation">@anim/pitchee_fade_out</item>
     </style>
 </resources>

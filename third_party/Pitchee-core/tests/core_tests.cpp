@@ -21,11 +21,17 @@ bool close(double left, double right, double tolerance = 1e-9) {
 }  // namespace
 
 int main() {
-    require(std::string(pitchee_core_version()) == "0.1.0", "version");
+    require(std::string(pitchee_version()) == "0.5.0", "version");
 
-    pitchee_composite_score_t score{};
+    pitchee_score_result_t score{};
     require(
-        pitchee_composite_score(90.0, 100.0, 200.0, 1, &score)
+        pitchee_score(
+            PITCHEE_SCORE_PROFILE_FEMINIZATION,
+            90.0,
+            100.0,
+            200.0,
+            &score
+        )
             == PITCHEE_SUCCESS,
         "composite call"
     );
@@ -34,7 +40,13 @@ int main() {
     require(std::string(score.score_rule) == "pass_boost", "pass boost rule");
 
     require(
-        pitchee_composite_score(70.0, 20.0, 180.0, 1, &score)
+        pitchee_score(
+            PITCHEE_SCORE_PROFILE_FEMINIZATION,
+            70.0,
+            20.0,
+            180.0,
+            &score
+        )
             == PITCHEE_SUCCESS,
         "cap call"
     );
@@ -46,7 +58,13 @@ int main() {
     );
 
     require(
-        pitchee_composite_score(20.0, 20.0, 180.0, 1, &score)
+        pitchee_score(
+            PITCHEE_SCORE_PROFILE_FEMINIZATION,
+            20.0,
+            20.0,
+            180.0,
+            &score
+        )
             == PITCHEE_SUCCESS,
         "low standard cap call"
     );
@@ -60,7 +78,13 @@ int main() {
     );
 
     require(
-        pitchee_composite_score(63.0, 90.0, 0.0, 0, &score)
+        pitchee_score(
+            PITCHEE_SCORE_PROFILE_FEMINIZATION,
+            63.0,
+            90.0,
+            0.0,
+            &score
+        )
             == PITCHEE_SUCCESS,
         "no f0 call"
     );
@@ -68,12 +92,62 @@ int main() {
     require(std::string(score.score_rule) == "f0_unavailable", "no f0 rule");
 
     require(
-        close(pitchee_composite_score_value(90.0, 100.0, 200.0), 100.0),
-        "three-metric composite score"
+        pitchee_score(
+            PITCHEE_SCORE_PROFILE_MASCULINIZATION,
+            50.0,
+            0.0,
+            165.0,
+            &score
+        ) == PITCHEE_SUCCESS,
+        "masculinization pivot call"
+    );
+    require(close(score.base_score, 60.0), "masculinization pivot base");
+    require(close(score.final_score, 60.0), "masculinization pivot final");
+    require(score.has_score_cap == 0, "masculinization no cap");
+    require(score.score_limited == 0, "masculinization not limited");
+    require(score.score_boosted == 0, "masculinization not boosted");
+    require(
+        std::string(score.score_rule) == "continuous",
+        "masculinization continuous rule"
+    );
+
+    require(
+        pitchee_score(
+            PITCHEE_SCORE_PROFILE_MASCULINIZATION,
+            30.0,
+            100.0,
+            120.0,
+            &score
+        ) == PITCHEE_SUCCESS,
+        "masculinization score call"
+    );
+    require(close(score.final_score, 81.0), "masculinization score");
+    require(close(score.base_score, score.final_score), "base equals final");
+
+    pitchee_score_result_t naturalness_independent{};
+    require(
+        pitchee_score(
+            PITCHEE_SCORE_PROFILE_MASCULINIZATION,
+            30.0,
+            0.0,
+            120.0,
+            &naturalness_independent
+        ) == PITCHEE_SUCCESS,
+        "masculinization naturalness independent call"
     );
     require(
-        close(pitchee_composite_score_value(63.0, 90.0, 0.0), 63.0),
-        "three-metric f0 fallback"
+        close(naturalness_independent.final_score, score.final_score),
+        "masculinization ignores naturalness"
+    );
+    require(
+        pitchee_score(
+            static_cast<pitchee_score_profile_t>(99),
+            30.0,
+            0.0,
+            120.0,
+            &score
+        ) == PITCHEE_ERROR_INVALID_ARGUMENT,
+        "invalid score profile"
     );
 
     std::cout << "PitcheeCore C++ tests passed\n";

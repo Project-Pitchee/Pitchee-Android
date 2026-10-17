@@ -1,48 +1,9 @@
-import org.gradle.api.DefaultTask
-import org.gradle.api.file.ArchiveOperations
-import org.gradle.api.file.ConfigurableFileCollection
-import org.gradle.api.file.DirectoryProperty
-import org.gradle.api.file.FileSystemOperations
-import org.gradle.api.tasks.InputFiles
-import org.gradle.api.tasks.OutputDirectory
-import org.gradle.api.tasks.PathSensitive
-import org.gradle.api.tasks.PathSensitivity
-import org.gradle.api.tasks.TaskAction
-import javax.inject.Inject
-
-abstract class ExtractOnnxRuntime @Inject constructor(
-    private val archiveOperations: ArchiveOperations,
-    private val fileSystemOperations: FileSystemOperations,
-) : DefaultTask() {
-    @get:InputFiles
-    @get:PathSensitive(PathSensitivity.NONE)
-    abstract val archives: ConfigurableFileCollection
-
-    @get:OutputDirectory
-    abstract val outputDirectory: DirectoryProperty
-
-    @TaskAction
-    fun extract() {
-        fileSystemOperations.sync {
-            into(outputDirectory)
-            archives.files.forEach { archive ->
-                from(archiveOperations.zipTree(archive)) {
-                    include("headers/**")
-                    include("jni/arm64-v8a/libonnxruntime.so")
-                    include("jni/x86_64/libonnxruntime.so")
-                }
-            }
-        }
-    }
-}
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
 
-val onnxRuntimeRoot = layout.buildDirectory.dir("onnxruntime").get().asFile
-val appVersionCode = providers.gradleProperty("versionCode").orNull?.toIntOrNull() ?: 1
+val appVersionCode = providers.gradleProperty("versionCode").orNull?.toIntOrNull() ?: 2_100_000_000
 val appVersionName = providers.gradleProperty("versionName").orNull ?: "1.0"
 val releaseStorePath = System.getenv("PITCHEE_KEYSTORE_PATH")
 val releaseStorePassword = System.getenv("PITCHEE_STORE_PASSWORD")
@@ -54,26 +15,35 @@ val hasReleaseSigning = listOf(
     releaseKeyAlias,
     releaseKeyPassword,
 ).all { !it.isNullOrBlank() }
-val onnxRuntimeAar by configurations.creating {
-    isCanBeConsumed = false
-    isCanBeResolved = true
+// Precedence: an explicit -Ppitchee.device.serial, then the device selected in
+// Android Studio, then ANDROID_SERIAL. With none of them the script prepares
+// every connected device, which is what makes this work with several devices
+// plugged in.
+val targetSerial = listOf(
+    providers.gradleProperty("pitchee.device.serial").orNull,
+    providers.gradleProperty("android.injected.device.serial").orNull,
+    providers.environmentVariable("ANDROID_SERIAL").orNull,
+).firstOrNull { !it.isNullOrBlank() }
+
+val keepDataUninstall by tasks.registering(Exec::class) {
+    group = "install"
+    description = "Uninstalls Pitchee while retaining app data before installing a new build."
+    commandLine("bash", rootProject.file("scripts/keep-data-uninstall.sh").absolutePath)
+    if (targetSerial != null) {
+        environment("ANDROID_SERIAL", targetSerial)
+    }
 }
 
-dependencies {
-    onnxRuntimeAar(libs.onnxruntime.android)
-    implementation(libs.onnxruntime.android)
+tasks.matching { it.name == "installDebug" || it.name == "installRelease" }.configureEach {
+    dependsOn(keepDataUninstall)
 }
 
-val prepareOnnxRuntime by tasks.registering(ExtractOnnxRuntime::class) {
-    description = "Extracts ONNX Runtime headers and native libraries from the Android AAR."
-    archives.from(onnxRuntimeAar)
-    outputDirectory.set(onnxRuntimeRoot)
-}
-
-tasks.matching {
-    it.name.startsWith("configureCMake") || it.name.startsWith("buildCMake")
-}.configureEach {
-    dependsOn(prepareOnnxRuntime)
+val invokedFromIde = providers.gradleProperty("android.injected.invoked.from.ide").orNull == "true" ||
+    providers.systemProperty("android.injected.invoked.from.ide").orNull == "true"
+if (invokedFromIde && !targetSerial.isNullOrBlank()) {
+    tasks.matching { it.name == "assembleDebug" }.configureEach {
+        dependsOn(keepDataUninstall)
+    }
 }
 
 android {
@@ -100,8 +70,8 @@ android {
             cmake {
                 arguments += listOf(
                     "-DPITCHEE_CORE_DIR=${rootProject.projectDir}/third_party/Pitchee-core",
-                    "-DPITCHEE_ORT_ROOT=$onnxRuntimeRoot",
-                    "-DANDROID_STL=c++_shared",
+                    "-DPITCHEE_NCNN_ROOT=${rootProject.projectDir}/third_party/ncnn-android",
+                    "-DANDROID_STL=c++_static",
                 )
                 cppFlags += "-std=c++17"
             }
@@ -177,6 +147,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.markwon.core)
     implementation(libs.markwon.latex)
+    implementation(libs.zentone)
     testImplementation(libs.junit)
     testImplementation(libs.json)
     androidTestImplementation(libs.androidx.espresso.core)

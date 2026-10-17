@@ -20,17 +20,21 @@ Java_space_pitchee_core_PitcheeAnalyzer_nativeCreate(
     JNIEnv* env,
     jclass,
     jstring model_directory,
-    jint threads
+    jint threads,
+    jfloat min_f0_hz,
+    jfloat max_f0_hz,
+    jfloat min_confidence
 ) {
     const char* model_chars = env->GetStringUTFChars(model_directory, nullptr);
-    pitchee_analyzer_options_t options{};
-    options.intra_op_threads = threads;
-    options.use_coreml = 0;
     pitchee_analyzer_t* analyzer = nullptr;
     char error[1024] = {};
     const auto status = pitchee_analyzer_create(
         model_chars,
-        &options,
+        threads,
+        0,
+        min_f0_hz,
+        max_f0_hz,
+        min_confidence,
         &analyzer,
         error,
         sizeof(error)
@@ -59,7 +63,8 @@ Java_space_pitchee_core_PitcheeAnalyzer_nativeAnalyze(
     jlong handle_value,
     jfloatArray samples,
     jint sample_rate,
-    jint channels
+    jint channels,
+    jint score_profile
 ) {
     auto* analyzer = reinterpret_cast<pitchee_analyzer_t*>(handle_value);
     const jsize count = env->GetArrayLength(samples);
@@ -67,12 +72,13 @@ Java_space_pitchee_core_PitcheeAnalyzer_nativeAnalyze(
     env->GetFloatArrayRegion(samples, 0, count, pcm.data());
     char* json = nullptr;
     char error[1024] = {};
-    const auto status = pitchee_analyzer_analyze_pcm(
+    const auto status = pitchee_analyze_pcm(
         analyzer,
         pcm.data(),
         pcm.size(),
         sample_rate,
         channels,
+        static_cast<pitchee_score_profile_t>(score_profile),
         nullptr,
         nullptr,
         &json,

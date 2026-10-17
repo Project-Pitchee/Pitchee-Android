@@ -2,6 +2,7 @@
 #define PITCHEE_INTERNAL_HPP
 
 #include <cstdint>
+#include <array>
 #include <filesystem>
 #include <limits>
 #include <memory>
@@ -15,6 +16,7 @@ constexpr int kPatchSamples = 24240;
 constexpr int kStrideSamples = 1600;
 constexpr int kEmbeddingBatchSize = 8;
 constexpr int kEmbeddingDimensions = 192;
+constexpr int kSchemaVersion = 3;
 // An infinite limit disables input truncation in the analyzer.
 constexpr double kMaximumSeconds = std::numeric_limits<double>::infinity();
 
@@ -68,7 +70,17 @@ struct SampleWindow {
     size_t length = 0;
 };
 
+struct VoiceHealthResult {
+    double disorder_probability = 0.0;
+    double health_score = 0.0;
+    bool disordered = false;
+    std::array<double, 14> acoustic{};
+    std::vector<double> ecapa_features;
+};
+
 struct AnalysisResult {
+    std::string model_version = "unknown";
+    int score_profile = 0;
     double vfp_standard_score = 0.0;
     int window_count = 0;
     std::vector<VfpWindow> vfp_windows;
@@ -103,7 +115,7 @@ struct PitchResult {
     int voiced_window_count = 0;
 };
 
-class OrtModel;
+class ModelRuntime;
 
 class NaturalnessModel {
 public:
@@ -115,10 +127,11 @@ public:
     double score(const std::vector<float>& features) const;
 
 private:
-    std::unique_ptr<OrtModel> model_;
+    std::unique_ptr<ModelRuntime> model_;
 };
 
 CompositeScore calculate_composite_score(
+    int score_profile,
     double vfp_standard_score,
     double naturalness_score,
     bool has_f0,
@@ -127,6 +140,7 @@ CompositeScore calculate_composite_score(
 
 std::string result_to_json(const AnalysisResult& result);
 std::string escape_json(const std::string& value);
+std::string model_version_from_directory(const std::filesystem::path& directory);
 
 std::vector<float> resample_mono(
     const float* interleaved,

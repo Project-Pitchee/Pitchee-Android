@@ -28,10 +28,10 @@ class PitcheeSpectrum private constructor(
     fun process(
         samples: FloatArray,
         onFrame: PitcheeSpectrumFrameCallback,
-    ): Long {
+    ) {
         check(nativeHandle != 0L)
         require(samples.isNotEmpty())
-        return nativeProcess(nativeHandle, samples, onFrame)
+        nativeProcess(nativeHandle, samples, onFrame)
     }
 
     @Synchronized
@@ -51,7 +51,7 @@ class PitcheeSpectrum private constructor(
         handle: Long,
         samples: FloatArray,
         callback: PitcheeSpectrumFrameCallback,
-    ): Long
+    )
 
     private external fun nativeReset(handle: Long)
 

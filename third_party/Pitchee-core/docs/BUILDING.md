@@ -178,6 +178,27 @@ cmake -S . -B build-android -G Ninja \
 cmake --build build-android -j 8
 ```
 
+Android arm64 ncnn-only build:
+
+```bash
+cmake -S . -B build-android-ncnn -G Ninja \
+  -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
+  -DANDROID_ABI=arm64-v8a \
+  -DANDROID_PLATFORM=android-24 \
+  -DPITCHEE_BUILD_SHARED=ON \
+  -DPITCHEE_BUILD_CLI=OFF \
+  -DPITCHEE_ENABLE_ORT=OFF \
+  -DPITCHEE_ENABLE_NCNN=ON \
+  -DPITCHEE_NCNN_INCLUDE_DIR="$PWD/third_party/ncnn-android/arm64-v8a/include" \
+  -DPITCHEE_NCNN_LIBRARY="$PWD/third_party/ncnn-android/arm64-v8a/lib/libncnn.a"
+
+cmake --build build-android-ncnn -j 8
+```
+
+Android forces `PITCHEE_ENABLE_ORT=OFF`; ONNX Runtime is not linked. All models
+must provide matching `.ncnn.param/bin` files. Desktop builds can continue to
+use ONNX Runtime.
+
 The Gradle application must package both:
 
 ```text
@@ -233,6 +254,18 @@ The application must make this directory readable at runtime:
 ```text
 models/
   SileroVAD.onnx
+  SileroVAD.ncnn.param
+  SileroVAD.ncnn.bin
+  ECAPAFrontend.ncnn.param
+  ECAPAFrontend.ncnn.bin
+  ECAPA.ncnn.param
+  ECAPA.ncnn.bin
+  VFPHead.ncnn.param
+  VFPHead.ncnn.bin
+  SwiftF0.ncnn.param
+  SwiftF0.ncnn.bin
+  Naturalness.ncnn.param
+  Naturalness.ncnn.bin
   ECAPAFrontend.onnx
   ECAPA.onnx
   VFPHead.onnx
@@ -244,11 +277,21 @@ models/
 Pass that directory to `pitchee_analyzer_create()`. The library does not search
 an app bundle and does not download models automatically.
 
+Android ncnn uses FP16 storage for `ECAPA.ncnn.bin`; the other ncnn models
+remain FP32. ncnn expands the ECAPA FP16 weights to FP32 for computation, so
+this is storage compression rather than FP16 arithmetic. ECAPA features are
+normalized to 150 frames, with zero-padding for shorter windows and truncation
+for longer windows. The fixed-window SwiftF0 STFT, ECAPA mask, and pitch decode
+steps use lightweight custom ncnn layers registered by PitcheeCore.
+
+See [`ECAPA_FP16_VALIDATION.md`](ECAPA_FP16_VALIDATION.md) for the Android
+arm64 accuracy and package-size comparison.
+
 ## Testing
 
 ```bash
 ctest --test-dir build --output-on-failure
-./build/pitchee_cli ./models /path/to/audio.wav
+./build/pitchee_cli ./models /path/to/audio.wav feminization
 ```
 
 The static C ABI consumer example is in `examples/consumer`.

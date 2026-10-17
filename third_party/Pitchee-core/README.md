@@ -18,6 +18,7 @@ PitcheeCore 是一个独立、跨平台的 C++17 语音预测库。输入一段�
 - VFP 语音顺性别女性概率分析
 - Naturalness 语音自然度分析
 - SwiftF0 基频分析
+- SwiftF0 实时 F0 流
 - 自定义综合分计算方法
 - UTF-8 JSON 数据输出
 
@@ -128,6 +129,28 @@ cmake -S . -B build-android -G Ninja \
   -DPITCHEE_ORT_LIBRARY="$PWD/third_party/onnxruntime-android/jni/arm64-v8a/libonnxruntime.so"
 ```
 
+Android 固定使用 ncnn-only，不链接 ONNX Runtime。下载与 CMake 同版本的
+ncnn Android 发布包，并传入 `arm64-v8a` 的 include/lib 目录：
+
+<https://github.com/Tencent/ncnn/releases>
+
+```bash
+cmake -S . -B build-android-ncnn -G Ninja \
+  -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
+  -DANDROID_ABI=arm64-v8a \
+  -DANDROID_PLATFORM=android-24 \
+  -DPITCHEE_BUILD_CLI=OFF \
+  -DPITCHEE_ENABLE_ORT=OFF \
+  -DPITCHEE_ENABLE_NCNN=ON \
+  -DPITCHEE_NCNN_INCLUDE_DIR="$PWD/third_party/ncnn-android/arm64-v8a/include" \
+  -DPITCHEE_NCNN_LIBRARY="$PWD/third_party/ncnn-android/arm64-v8a/lib/libncnn.a"
+
+cmake --build build-android-ncnn -j 8
+```
+
+Android 构建会强制关闭 `PITCHEE_ENABLE_ORT`，所有六个模型必须提供对应的
+`.ncnn.param/bin`。桌面端仍可使用 ONNX Runtime 构建。
+
 iOS：
 
 ```bash
@@ -142,8 +165,51 @@ unzip /tmp/onnxruntime-ios.zip -d third_party/onnxruntime-ios
 ### 6. 运行预测
 
 ```bash
-./build-macos/pitchee_cli ./models /path/to/audio.wav
+./build-macos/pitchee_cli ./models /path/to/audio.wav feminization
+./build-macos/pitchee_cli ./models voice-health /path/to/audio.wav
 ```
+
+第三个参数必须显式指定 `feminization` 或 `masculinization`。
+
+嗓音健康分析是独立入口，不出现在主分析 JSON 中：
+
+```c
+pitchee_voice_health_result_t health = {0};
+pitchee_analysis_run_voice_health_wav_file(
+    analyzer,
+    "/path/to/audio.wav",
+    NULL,
+    NULL,
+    &health,
+    error,
+    sizeof(error)
+);
+```
+
+该接口复用 Analyzer 的 VAD、SwiftF0 和 ECAPA。模型头权重直接编译进
+`voice_health_model.hpp`，不增加模型文件。Core 将训练得到的原始阈值
+`0.4135834447` 做单调分段线性校准，使其映射到健康分 `30`。分类规则为：
+
+```text
+health_score >= 30 -> 不嘶哑
+health_score <  30 -> 嘶哑
+```
+
+`decision_threshold` 因此使用 0-100 健康分尺度，值为 `30`。Android 上 VAD、
+SwiftF0 和 ECAPA 仍走既有 ncnn 后端，因此不需要额外 ncnn 转换步骤。
+
+macOS 也可以直接从命令行录音并分析。录音使用系统当前的默认输入设备，可在
+“系统设置 → 声音 → 输入”中切换：
+
+```bash
+./build-macos/pitchee_cli ./models record 8 feminization
+./build-macos/pitchee_cli ./models record 8 feminization /tmp/voice.wav
+```
+
+录音模式需要系统安装 `ffmpeg`，第一次运行时 macOS 会请求麦克风权限。录音先以
+macOS 使用 Core 内置的 AVAudioEngine 直接采集 Float32 PCM，Core 再在分析阶段
+统一转换到 16 kHz；不再启动外部 ffmpeg 进程，避免实时管道和重采样产生卡顿或
+电子声。输出包括平均 F0 和现有综合分。
 
 CLI 支持 PCM16、PCM32 和 Float32 WAV。M4A、MP3、AAC 等压缩格式应通过
 AVFoundation、MediaCodec 或桌面解码器转换成 Float32 PCM。
@@ -159,13 +225,16 @@ Core 的 16 kHz 重采样与 FFmpeg `swresample` 的默认参数对齐，并在�
 #include <stdio.h>
 
 int main(void) {
-    pitchee_analyzer_options_t options = {2, 0, 0};
     pitchee_analyzer_t* analyzer = NULL;
     char error[1024] = {0};
 
     pitchee_status_t status = pitchee_analyzer_create(
         "./models",
-        &options,
+        2,       /* ONNX Runtime intra-op threads */
+        0,       /* use CoreML */
+        75.0f,   /* min F0 Hz */
+        600.0f,  /* max F0 Hz */
+        0.9f,    /* min SwiftF0 confidence */
         &analyzer,
         error,
         sizeof(error)
@@ -176,9 +245,10 @@ int main(void) {
     }
 
     char* json = NULL;
-    status = pitchee_analyzer_analyze_wav_file(
+    status = pitchee_analyze_wav_file(
         analyzer,
         "/path/to/audio.wav",
+        PITCHEE_SCORE_PROFILE_FEMINIZATION,
         NULL,
         NULL,
         &json,
@@ -200,7 +270,7 @@ int main(void) {
 
 ### 详细进度回调
 
-旧版 `pitchee_phase_callback_t` 继续保留。需要细粒度进度时，使用：
+离线分析统一使用一个进度回调；不需要进度时传 `NULL`：
 
 ```c
 void progress_callback(const pitchee_progress_t* progress, void* user_data) {
@@ -228,9 +298,10 @@ void progress_callback(const pitchee_progress_t* progress, void* user_data) {
     (void)user_data;
 }
 
-status = pitchee_analyzer_analyze_wav_file_with_progress(
+status = pitchee_analyze_wav_file(
     analyzer,
     "/path/to/audio.wav",
+    PITCHEE_SCORE_PROFILE_FEMINIZATION,
     progress_callback,
     NULL,
     &json,
@@ -246,19 +317,30 @@ status = pitchee_analyzer_analyze_wav_file_with_progress(
 ### 实时 F0
 
 实时 F0 接口复用同一个 analyzer 中已加载的 SwiftF0 session。输入必须是
-16 kHz mono Float32 PCM；Core 不负责麦克风采集或重采样。
+16 kHz mono Float32 PCM；Core 不负责麦克风采集或重采样。旧的位置参数接口
+仍然保留，新集成应使用版本化 options 接口：
 
 ```c
-pitchee_realtime_f0_t* f0_stream = NULL;
-pitchee_realtime_f0_options_t f0_options = {5120, 256, 0};
+pitchee_realtime_f0_options_t options = {
+    .struct_size = sizeof(options),
+    .version = PITCHEE_REALTIME_F0_OPTIONS_VERSION,
+    .context_samples = 5120,          /* 320 ms inference context */
+    .inference_hop_samples = 256,     /* run the model every 16 ms */
+    .output_rate_hz = 30.0,           /* requested callback cadence */
+    .start_timestamp_seconds = 0.0,
+};
 
-pitchee_realtime_f0_create(
+pitchee_realtime_f0_t* f0_stream = NULL;
+pitchee_realtime_f0_create_with_options(
     analyzer,
-    &f0_options,
+    &options,
     &f0_stream,
     error,
     sizeof(error)
 );
+
+/* Optional: initialize the ncnn graph before recording starts. */
+pitchee_realtime_f0_warmup(f0_stream, error, sizeof(error));
 
 void f0_callback(const pitchee_f0_frame_t* frame, void* user_data) {
     if (frame->voiced) {
@@ -274,7 +356,6 @@ pitchee_realtime_f0_process(
     sample_count,
     f0_callback,
     NULL,
-    NULL,
     error,
     sizeof(error)
 );
@@ -283,28 +364,54 @@ pitchee_realtime_f0_reset(f0_stream);
 pitchee_realtime_f0_destroy(f0_stream);
 ```
 
-默认参数：
+参数契约：
 
 | 字段 | 默认值 | 含义 |
 | --- | ---: | --- |
-| `context_samples` | `5120` | 每次推理使用的最近 320 ms 音频 |
-| `hop_samples` | `256` | 每收到 16 ms 新音频更新一次 |
+| `context_samples` | `5120` | 每次模型推理使用的最近音频长度，不是回调窗口 |
+| `inference_hop_samples` | `256` | 模型推理间隔，不是回调输出间隔 |
+| `output_rate_hz` | `0` | 回调目标帧率；`0` 表示 SwiftF0 原生 `62.5 Hz`，高于原生值会被封顶 |
+| `start_timestamp_seconds` | `0` | `timestamp_seconds` 的时间原点 |
 
-SwiftF0 每帧时间步长是 256 samples。Core 使用重叠上下文维持低频稳定性，
-并对重复帧按整数 sample index 去重。`voiced` 为 Core 的显示判定，当前要求
-置信度大于 `0.9` 且 F0 位于 `75–600 Hz`。
+SwiftF0 的模型帧步长是 `256 / 16000 = 16 ms`。Core 会在模型帧上做稳定选择，
+让平均回调帧率接近 `output_rate_hz`，但不会伪造高于模型帧率的新数据。实际配置值
+可通过 `pitchee_realtime_f0_get_metadata()` 查询：
 
-同一个实时流必须串行调用；不同流可以使用不同 analyzer。analyzer 的生命周期
-必须长于其创建的实时流。
+```text
+sample_rate = 16000
+frame_hop_samples = 256
+frame_interval_seconds = 0.016
+min_context_samples = 1024
+model_output_rate_hz = 62.5
+effective_output_rate_hz = requested/capped rate
+```
+
+`timestamp_seconds` 是所选模型帧在流时间轴上的时间，并加上
+`start_timestamp_seconds`。`pitchee_realtime_f0_reset()` 会把流时间归零，但保留
+配置的 `start_timestamp_seconds`。流创建后 `context_samples` 和
+`inference_hop_samples` 固定；修改窗口大小应创建新流。建议在录音前调用
+`pitchee_realtime_f0_warmup()`，尤其 ncnn 后端会按输入 shape 初始化内部缓冲。
+
+耗时统计可通过 `pitchee_realtime_f0_get_stats()` 获取，包含 preprocess、model、
+postprocess、total，以及根据实际输出帧计算的 `measured_output_hz`。
+
+同一个实时流必须串行调用。`frame_callback` 在 `pitchee_realtime_f0_process()`
+的调用线程上同步执行；回调期间不要阻塞，也不要重入同一个流的 process/reset/
+destroy。调用 `destroy()` 前必须确保所有 process 调用已经返回。analyzer 的生命
+周期必须长于其创建的实时流。
 
 ### Spectrum 频谱
 
 Spectrum 是完全独立的接口，不需要 ONNX Runtime，也不需要 analyzer：
 
 ```c
+#include <pitchee/spectrum.h>
+```
+
+```c
 pitchee_spectrum_options_t options = {
     2048, 256, 40, 8000,
-    PITCHEE_SPECTRUM_DBFS, 0.65f, 0
+    PITCHEE_SPECTRUM_DBFS, 0.65f
 };
 pitchee_spectrum_t* spectrum = NULL;
 
@@ -330,7 +437,6 @@ pitchee_spectrum_process(
     sample_count,
     spectrum_callback,
     NULL,
-    NULL,
     error,
     sizeof(error)
 );
@@ -344,14 +450,67 @@ pitchee_spectrum_destroy(spectrum);
 `first_bin_index + i` 和 `bin_hz` 计算每个 bin 的实际频率。Spectrum 输入
 同样要求 16 kHz mono Float32 PCM。
 
+## HNR（谐噪比）
+
+HNR 与 Spectrum 一样是独立分析模块，不属于评分分析流水线。它的公开 ABI 位于
+`include/pitchee/hnr.h`，只接收 16 kHz mono Float32 PCM 和预先计算的 VAD
+区间，不会自行加载模型，也不会出现在 `pitchee_analyze_*` 的 JSON 中。
+
+需要 analyzer 的只应当是 VAD 分段步骤。Core 提供
+`pitchee_analyzer_detect_vad()`：它可以使用任意输入采样率/声道数，返回原始
+时间轴上的 `pitchee_vad_segment_t`。客户端把同样的 16 kHz PCM 和这些区间传给
+`pitchee_hnr_analyze()` 即可组合两个独立模块：
+
+```c
+#include "pitchee/pitchee.h"
+#include "pitchee/hnr.h"
+
+typedef struct {
+    pitchee_vad_segment_t items[64];
+    size_t count;
+} VadSink;
+
+void collect_vad(const pitchee_vad_segment_t* segment, void* user_data) {
+    VadSink* sink = user_data;
+    if (sink->count < 64) sink->items[sink->count++] = *segment;
+}
+
+pitchee_analyzer_detect_vad(
+    analyzer,
+    pcm_16k_mono,
+    sample_count,
+    16000,
+    1,
+    collect_vad,
+    &sink,
+    error,
+    sizeof(error)
+);
+
+pitchee_hnr_summary_t summary;
+pitchee_hnr_analyze(
+    pcm_16k_mono,
+    sample_count,
+    sink.items,
+    sink.count,
+    NULL,
+    NULL,
+    &summary
+);
+```
+
+依赖方向因此保持单向：`analyzer -> VAD segments`，`PCM + VAD segments -> HNR`。
+HNR 不依赖 analyzer，评分流水线也不依赖 HNR。
+
 ## Output
 
 输入一段有效音频后，会返回一个 UTF-8 JSON。下面是示例，数组内容省略了一部分：
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "model_version": "2026-09",
+  "score_profile": "feminization",
   "audio": {
     "source_sample_rate": 16000,
     "source_channels": 1,
@@ -417,8 +576,9 @@ pitchee_spectrum_destroy(spectrum);
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `schema_version` | 整数 | JSON 数据契约版本。结构不兼容变化时递增。当前为 `2`。 |
+| `schema_version` | 整数 | JSON 数据契约版本，当前为 `3`。 |
 | `model_version` | 字符串 | 模型组合版本。当前为 `2026-09`。模型更新后应同步更新。 |
+| `score_profile` | 字符串 | 当前评分标准，`feminization` 或 `masculinization`。 |
 
 ### `audio`
 
@@ -467,7 +627,7 @@ end_seconds - start_seconds
 | `window_seconds` | 秒 | F0 时间轴窗口长度，固定为 `0.05`。 |
 | `mean_hz` | Hz | 有效浊音帧的平均 F0。没有有效帧时为 `null`。 |
 | `standard_deviation_hz` | Hz | 浊音 F0 的总体标准差，分母为帧数 `N`。 |
-| `voiced_frame_count` | 数量 | 置信度大于 `0.9` 且 F0 在 `75–600 Hz` 的帧数。 |
+| `voiced_frame_count` | 数量 | 通过该 analyzer 配置的 SwiftF0 阈值的帧数。 |
 | `voiced_window_count` | 数量 | 至少包含一个有效浊音帧的 0.05 秒窗口数。 |
 | `windows` | 数组 | 原始分析音频时间轴上的 F0 时间序列。 |
 
@@ -536,17 +696,21 @@ Core 不对语音段做拼接。长语音段按 1.515 秒窗口和 0.1 秒步长
 
 ## 综合分规则
 
-如果只需要最终分数，Core 提供三指标便捷接口：
+综合分接口是：
 
 ```c
-double final_score = pitchee_composite_score_value(
+pitchee_score_result_t score;
+pitchee_score(
+    PITCHEE_SCORE_PROFILE_FEMINIZATION,
     vfp_standard_score,
     naturalness_score,
-    f0_hz
+    f0_hz,
+    &score
 );
 ```
 
-没有有效 F0 时，`f0_hz` 传 `NAN` 或 `<= 0`。
+最终分数读取 `score.final_score`。没有有效 F0 时，`f0_hz` 传 `NAN` 或
+`<= 0`。
 
 令：
 
@@ -567,7 +731,7 @@ base_score = 100 × (
 )
 ```
 
-规则按以下顺序判断：
+女性化规则按以下顺序判断：
 
 | `rule` | 条件 | 处理 |
 | --- | --- | --- |
@@ -597,11 +761,40 @@ promoted = 60 + 40 × strength
 最终分数始终限制在 `0–100`。只有当 cap 真正降低分数时 `limited` 才为
 `true`；只有及格提升真正提高分数时 `boosted` 才为 `true`。
 
+男性化模式只使用 F0 和 VFP，不读取自然度。定义：
+
+```text
+dF0  = clamp((165 - F0) / 75, -1, 1)
+dVFP = clamp((50 - VFP) / 50, -1, 1)
+
+base_score = final_score = clamp(
+    60 + 25 × dF0 + 15 × dVFP,
+    0,
+    100
+)
+```
+
+因此 `F0 = 165 Hz`、`VFP = 50` 时分数严格为 `60`。没有有效 F0 时
+`dF0 = 0`。男性化模式固定返回 `rule = "continuous"`、`cap = null`、
+`limited = false`、`boosted = false`，且 `base_score = final_score`。
+
 ## 模型目录
 
 ```text
 models/
   SileroVAD.onnx
+  SileroVAD.ncnn.param
+  SileroVAD.ncnn.bin
+  ECAPAFrontend.ncnn.param
+  ECAPAFrontend.ncnn.bin
+  ECAPA.ncnn.param
+  ECAPA.ncnn.bin
+  VFPHead.ncnn.param
+  VFPHead.ncnn.bin
+  SwiftF0.ncnn.param
+  SwiftF0.ncnn.bin
+  Naturalness.ncnn.param
+  Naturalness.ncnn.bin
   ECAPAFrontend.onnx
   ECAPA.onnx
   VFPHead.onnx
@@ -617,6 +810,18 @@ models/
 FP32 权重。`ECAPA.onnx` 当前仍为 FP16 权重，用于控制移动端包体和内存占用。
 `ECAPAFrontend.onnx` 和 `ECAPA.onnx` 的时间维是动态的，因此 VAD 短语音段
 可以按原长度直接推理，不需要补齐到 1.515 秒。
+
+`.ncnn.param/bin` 是 Android ncnn-only 构建的必需模型。桌面构建仍可只放置
+`.onnx` 文件并使用 ONNX Runtime。
+
+Android ncnn 路径中，`ECAPA.ncnn.bin` 使用 FP16 存储；其余 ncnn 模型仍为
+FP32。ncnn 加载时需要把 FP16 权重展开为 FP32 参与计算，因此这是存储压缩，
+不是 FP16 推理。ECAPA 输入统一为 150 帧：短窗口补零、长窗口截断，避免 ncnn
+ARM 在动态时间长度下触发 Concat 分配问题。SwiftF0 的固定 STFT、ECAPA mask
+和 pitch decode 由 Core 注册的轻量 ncnn custom layer 实现。
+
+ECAPA FP16 的 Android arm64 验证结果见
+[`docs/ECAPA_FP16_VALIDATION.md`](docs/ECAPA_FP16_VALIDATION.md)。
 
 ## 线程与生命周期
 

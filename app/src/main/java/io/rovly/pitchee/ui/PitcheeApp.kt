@@ -5,28 +5,30 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -34,6 +36,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -43,6 +48,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,28 +57,46 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import io.rovly.pitchee.BuildConfig
 import io.rovly.pitchee.R
-import io.rovly.pitchee.data.FeminineTimeline
-import io.rovly.pitchee.data.PitcheeResult
+import io.rovly.pitchee.data.model.FeminineTimeline
+import io.rovly.pitchee.data.model.PitcheeResult
+import io.rovly.pitchee.feature.analysis.AnalysisExportButton
+import io.rovly.pitchee.feature.analysis.PreviousMetrics
+import io.rovly.pitchee.feature.analysis.RecordUiState
+import io.rovly.pitchee.feature.analysis.RecordViewModel
+import io.rovly.pitchee.feature.analysis.RecordedAudioTimeline
+import io.rovly.pitchee.feature.analysis.RecordingStage
+import io.rovly.pitchee.feature.analysis.ScoreResultContent
+import io.rovly.pitchee.feature.analysis.ScoreRulesContent
+import io.rovly.pitchee.feature.dashboard.DashboardScreen
+import io.rovly.pitchee.feature.dashboard.DashboardScrollPosition
+import io.rovly.pitchee.feature.more.MoreScreen
+import io.rovly.pitchee.feature.onboarding.OnboardingScreen
+import io.rovly.pitchee.feature.pitch.RealtimePitchScreen
+import io.rovly.pitchee.feature.settings.SettingsScreen
+import io.rovly.pitchee.feature.settings.VoicePreferencePreferences
+import io.rovly.pitchee.ui.common.SwipeBackContainer
+import io.rovly.pitchee.ui.common.ScreenTitle
+import io.rovly.pitchee.ui.common.ScreenTransition
 import io.rovly.pitchee.update.ApkInstaller
 import io.rovly.pitchee.update.GitHubRelease
 import io.rovly.pitchee.update.UpdateUiState
 import io.rovly.pitchee.update.UpdateViewModel
 import java.io.File
-import space.pitchee.core.PitcheePhase
+import kotlin.math.abs
 import kotlinx.coroutines.launch
+
+private val MAX_CONTENT_WIDTH = 1040.dp
 
 private enum class PitcheeDestination(
     val labelRes: Int,
@@ -80,17 +104,29 @@ private enum class PitcheeDestination(
 ) {
     DASHBOARD(R.string.nav_dashboard, R.drawable.ic_dashboard),
     PITCH(R.string.nav_pitch, R.drawable.ic_pitch_analysis),
-    SPECTRUM(R.string.nav_spectrum, R.drawable.ic_spectrum),
     ANALYSIS(R.string.nav_analysis, R.drawable.ic_model_analysis),
+    MORE(R.string.nav_more, R.drawable.ic_more),
     SETTINGS(R.string.nav_settings, R.drawable.ic_settings),
-    SCORE_RULES(R.string.nav_score_test, R.drawable.ic_model_analysis),
 }
 
 @Preview
 @Composable
 fun PitcheeApp() {
-    var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     val context = LocalContext.current
+    val voicePreferences = remember(context) {
+        VoicePreferencePreferences(context.applicationContext)
+    }
+    var onboardingCompleted by rememberSaveable {
+        mutableStateOf(voicePreferences.hasCompletedOnboarding())
+    }
+    if (!onboardingCompleted) {
+        OnboardingScreen { preference ->
+            voicePreferences.completeOnboarding(preference)
+            onboardingCompleted = true
+        }
+        return
+    }
+    var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     val updateViewModel: UpdateViewModel = viewModel(
         factory = remember { UpdateViewModel.factory(context.applicationContext) },
     )
@@ -123,11 +159,7 @@ fun PitcheeApp() {
             ApkInstaller.requestInstallPermission(context)
         }
     }
-    val destinations = remember {
-        PitcheeDestination.entries.filter {
-            it != PitcheeDestination.SCORE_RULES || BuildConfig.DEBUG
-        }
-    }
+    val destinations = remember { PitcheeDestination.entries }
     val dashboardScrollPosition = remember { DashboardScrollPosition() }
 
     LaunchedEffect(Unit) {
@@ -219,69 +251,116 @@ fun PitcheeApp() {
         else -> Unit
     }
 
-    Scaffold(
-        bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                tonalElevation = 0.dp,
+    val layoutDirection = LocalLayoutDirection.current
+    val screenContent: @Composable (PaddingValues) -> Unit = { innerPadding ->
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            // The pitch chart paints its own background, so that tab runs under
+            // the status bar. Everything else stays inset as before.
+            val fullBleedTop = destinations[selectedIndex] == PitcheeDestination.PITCH
+            val contentPadding = if (fullBleedTop) {
+                PaddingValues(
+                    start = innerPadding.calculateStartPadding(layoutDirection),
+                    end = innerPadding.calculateEndPadding(layoutDirection),
+                    bottom = innerPadding.calculateBottomPadding(),
+                )
+            } else {
+                innerPadding
+            }
+            SwipeBackContainer(
+                enabled = destinations[selectedIndex] != PitcheeDestination.DASHBOARD,
+                onBack = { selectedIndex = 0 },
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .widthIn(max = MAX_CONTENT_WIDTH)
+                    .fillMaxWidth()
+                    .padding(contentPadding),
             ) {
-                destinations.forEachIndexed { index, destination ->
-                    NavigationBarItem(
-                        selected = selectedIndex == index,
-                        onClick = { selectedIndex = index },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                        icon = {
-                            Icon(
-                                painter = painterResource(destination.iconRes),
-                                contentDescription = null,
-                            )
-                        },
-                        label = { Text(stringResource(destination.labelRes)) },
+                when (destinations[selectedIndex]) {
+                    PitcheeDestination.DASHBOARD -> DashboardScreen(
+                        refreshKey = selectedIndex,
+                        scrollPosition = dashboardScrollPosition,
+                    )
+                    PitcheeDestination.PITCH -> RealtimePitchScreen()
+                    PitcheeDestination.MORE -> MoreScreen()
+                    PitcheeDestination.ANALYSIS -> RecordAnalysisScreen()
+                    PitcheeDestination.SETTINGS -> SettingsScreen(
+                        updateState = updateState,
+                        autoCheckUpdates = autoCheckUpdates,
+                        onAutoCheckChange = updateViewModel::setAutoCheck,
+                        onCheckUpdates = { updateViewModel.checkForUpdates(manual = true) },
                     )
                 }
             }
-        },
-    ) { innerPadding ->
-        SwipeBackContainer(
-            enabled = destinations[selectedIndex] != PitcheeDestination.DASHBOARD,
-            onBack = { selectedIndex = 0 },
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) {
-            when (destinations[selectedIndex]) {
-                PitcheeDestination.DASHBOARD -> DashboardScreen(
-                    refreshKey = selectedIndex,
-                    scrollPosition = dashboardScrollPosition,
-                )
-                PitcheeDestination.PITCH -> RealtimePitchScreen()
-                PitcheeDestination.SPECTRUM -> RealtimeSpectrumScreen()
-                PitcheeDestination.ANALYSIS -> RecordAnalysisScreen()
-                PitcheeDestination.SETTINGS -> SettingsScreen(
-                    updateState = updateState,
-                    autoCheckUpdates = autoCheckUpdates,
-                    onAutoCheckChange = updateViewModel::setAutoCheck,
-                    onCheckUpdates = { updateViewModel.checkForUpdates(manual = true) },
-                )
-                PitcheeDestination.SCORE_RULES -> ScoreRulesPage(
-                    result = remember { demoRuleResult() },
-                    previousScore = 52.0,
-                    previousMetrics = PreviousMetrics(
-                        standardScore = 70.0,
-                        naturalnessScore = 75.0,
-                        meanF0Hz = 150.0,
-                    ),
-                    onBack = null,
-                )
-            }
         }
     }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val useNavigationRail = maxWidth >= 600.dp
+        if (useNavigationRail) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                NavigationRail(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                ) {
+                    destinations.forEachIndexed { index, destination ->
+                        NavigationRailItem(
+                            selected = selectedIndex == index,
+                            onClick = { selectedIndex = index },
+                            colors = NavigationRailItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                            icon = {
+                                Icon(
+                                    painter = painterResource(destination.iconRes),
+                                    contentDescription = null,
+                                )
+                            },
+                            label = { Text(stringResource(destination.labelRes)) },
+                        )
+                    }
+                }
+                Scaffold { innerPadding -> screenContent(innerPadding) }
+            }
+        } else {
+            Scaffold(
+                bottomBar = {
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        tonalElevation = 0.dp,
+                    ) {
+                        destinations.forEachIndexed { index, destination ->
+                            NavigationBarItem(
+                                selected = selectedIndex == index,
+                                onClick = { selectedIndex = index },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                ),
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(destination.iconRes),
+                                        contentDescription = null,
+                                    )
+                                },
+                                label = { Text(stringResource(destination.labelRes)) },
+                            )
+                        }
+                    }
+                },
+                content = screenContent,
+            )
+        }
+    }
+
 }
 
 @Composable
@@ -294,6 +373,16 @@ private fun RecordAnalysisScreen() {
     val scope = rememberCoroutineScope()
     val permissionDeniedMessage = stringResource(R.string.record_permission_denied)
     var showingRules by rememberSaveable { mutableStateOf(false) }
+    // Same idea as the dashboard: keep a strictly ordered zIndex so a pop right
+    // after a pop cannot tie with the outgoing page.
+    var rulesZStep by remember { mutableFloatStateOf(1f) }
+
+    fun setRulesVisible(visible: Boolean) {
+        if (visible == showingRules) return
+        val magnitude = abs(rulesZStep) + 1f
+        rulesZStep = if (visible) magnitude else -magnitude
+        showingRules = visible
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -308,7 +397,7 @@ private fun RecordAnalysisScreen() {
     }
 
     fun startRecording() {
-        showingRules = false
+        setRulesVisible(false)
         val granted = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.RECORD_AUDIO,
@@ -331,32 +420,15 @@ private fun RecordAnalysisScreen() {
             is RecordUiState.Success -> {
                 SwipeBackContainer(
                     enabled = showingRules,
-                    onBack = { showingRules = false },
+                    onBack = { setRulesVisible(false) },
                 ) {
-                    AnimatedContent(
+                    ScreenTransition(
                         targetState = showingRules,
+                        forward = showingRules,
+                        contentZIndex = rulesZStep,
                         modifier = Modifier
                             .fillMaxSize()
                             .background(MaterialTheme.colorScheme.background),
-                        transitionSpec = {
-                            if (targetState) {
-                                slideInHorizontally(
-                                    animationSpec = spring(dampingRatio = 0.84f, stiffness = 280f),
-                                    initialOffsetX = { it / 2 },
-                                ) togetherWith slideOutHorizontally(
-                                    animationSpec = spring(dampingRatio = 0.9f, stiffness = 320f),
-                                    targetOffsetX = { -it / 3 },
-                                )
-                            } else {
-                                slideInHorizontally(
-                                    animationSpec = spring(dampingRatio = 0.84f, stiffness = 280f),
-                                    initialOffsetX = { -it / 3 },
-                                ) togetherWith slideOutHorizontally(
-                                    animationSpec = spring(dampingRatio = 0.9f, stiffness = 320f),
-                                    targetOffsetX = { it / 2 },
-                                )
-                            }
-                        },
                         label = "score-rules-page",
                     ) { rulesVisible ->
                         if (rulesVisible) {
@@ -364,7 +436,7 @@ private fun RecordAnalysisScreen() {
                                 result = current.result,
                                 previousScore = current.previousScore,
                                 previousMetrics = current.previousMetrics,
-                                onBack = { showingRules = false },
+                                onBack = { setRulesVisible(false) },
                             )
                         } else {
                             Surface(
@@ -384,12 +456,26 @@ private fun RecordAnalysisScreen() {
                                     )
                                 }
                                 ScreenColumn {
+                                    val resultTimestamp = remember(current.result) {
+                                        System.currentTimeMillis()
+                                    }
+                                    ScreenTitle(
+                                        title = stringResource(R.string.analysis_result_title),
+                                        trailingContent = {
+                                            AnalysisExportButton(
+                                                result = current.result,
+                                                audio = current.audio,
+                                                timestampMillis = resultTimestamp,
+                                            )
+                                        },
+                                    )
+                                    Spacer(Modifier.height(14.dp))
                                     ScoreResultContent(
                                         result = current.result,
                                         previousScore = current.previousScore,
                                         previousMetrics = current.previousMetrics,
                                         animateScore = animateScore,
-                                        onOpenRules = { showingRules = true },
+                                        onOpenRules = { setRulesVisible(true) },
                                     ) {
                                         RecordedAudioTimeline(
                                             audio = current.audio,
@@ -498,21 +584,10 @@ private fun ScoreRulesPage(
             color = MaterialTheme.colorScheme.background,
         ) {
             ScreenColumn {
-            if (onBack != null) {
-                TextButton(
-                    onClick = onBack,
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    ),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-                ) {
-                    Text(stringResource(R.string.score_rules_back))
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-            ScreenHeader(
+            ScreenTitle(
                 title = stringResource(R.string.score_rules_title),
                 subtitle = stringResource(R.string.score_rules_subtitle),
+                onBack = onBack,
             )
             Spacer(Modifier.height(20.dp))
             ScoreRulesContent(
@@ -524,62 +599,6 @@ private fun ScoreRulesPage(
         }
     }
 }
-
-private fun demoRuleResult(): PitcheeResult = PitcheeResult.fromJson(
-    """
-    {
-      "schema_version": 2,
-      "model_version": "preview",
-      "audio": {
-        "source_sample_rate": 48000,
-        "source_channels": 1,
-        "input_seconds": 8.0,
-        "analyzed_seconds": 8.0
-      },
-      "vad": {
-        "segment_count": 1,
-        "speech_seconds": 7.2,
-        "silero_segment_count": 1,
-        "discarded_breath_like_count": 0,
-        "trimmed_segment_count": 0,
-        "segments": [{
-          "start_seconds": 0.2,
-          "end_seconds": 7.4,
-          "speech_start_seconds": 0.0,
-          "speech_end_seconds": 7.2
-        }]
-      },
-      "f0": {
-        "window_seconds": 0.05,
-        "mean_hz": 158.0,
-        "standard_deviation_hz": 12.0,
-        "voiced_frame_count": 600,
-        "voiced_window_count": 60,
-        "windows": []
-      },
-      "vfp": {
-        "vfp_standard_score": 76.0,
-        "window_count": 4,
-        "window_duration_seconds": 1.515,
-        "windows": []
-      },
-      "naturalness": {
-        "score": 68.0,
-        "window_count": 4,
-        "window_duration_seconds": 1.515,
-        "windows": []
-      },
-      "composite": {
-        "base_score": 72.0,
-        "final_score": 59.0,
-        "cap": 59.0,
-        "rule": "low_f0_natural_cap",
-        "limited": true,
-        "boosted": false
-      }
-    }
-    """.trimIndent(),
-)
 
 @Composable
 private fun ErrorCard(message: String) {
@@ -599,21 +618,6 @@ private fun ErrorCard(message: String) {
             Text(message, style = MaterialTheme.typography.bodyMedium)
         }
     }
-}
-
-@Composable
-private fun ScreenHeader(title: String, subtitle: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.headlineMedium,
-        fontWeight = FontWeight.Bold,
-    )
-    Spacer(Modifier.height(6.dp))
-    Text(
-        text = subtitle,
-        style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
 }
 
 @Composable
