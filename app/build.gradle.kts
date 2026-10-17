@@ -3,8 +3,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-val appVersionCode = providers.gradleProperty("versionCode").orNull?.toIntOrNull() ?: 2_100_000_000
-val appVersionName = providers.gradleProperty("versionName").orNull ?: "1.0"
+val appVersionCode = providers.gradleProperty("versionCode").orNull?.toIntOrNull() ?: 1_000_001
+val appVersionName = providers.gradleProperty("versionName").orNull ?: "1.0.1"
 val releaseStorePath = System.getenv("PITCHEE_KEYSTORE_PATH")
 val releaseStorePassword = System.getenv("PITCHEE_STORE_PASSWORD")
 val releaseKeyAlias = System.getenv("PITCHEE_KEY_ALIAS")
