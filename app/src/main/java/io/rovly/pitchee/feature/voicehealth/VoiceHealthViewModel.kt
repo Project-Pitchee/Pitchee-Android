@@ -1,7 +1,8 @@
 package io.rovly.pitchee.feature.voicehealth
 
 import android.content.Context
-import android.os.SystemClock
+import android.util.Log
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -10,10 +11,14 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import io.rovly.pitchee.R
 import io.rovly.pitchee.data.audio.RealtimeF0AudioRecorder
 import io.rovly.pitchee.data.repository.PitcheeRepository
+import io.rovly.pitchee.feature.analysis.SpeechIntervalTracker
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.abs
+import kotlin.math.sqrt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,6 +34,7 @@ sealed interface VoiceHealthUiState {
     data class Recording(
         val elapsedSeconds: Float,
         val validSpeechSeconds: Float,
+        val amplitudes: List<Float>,
     ) : VoiceHealthUiState
 
     data class Analyzing(
@@ -40,92 +46,120 @@ sealed interface VoiceHealthUiState {
     ) : VoiceHealthUiState
 
     data class Error(
-        val message: String,
+        val message: String? = null,
+        @get:StringRes val messageRes: Int? = null,
     ) : VoiceHealthUiState
 }
 
 internal class VoiceHealthViewModel(
-    private val context: Context,
     private val repository: PitcheeRepository,
     private val recorder: RealtimeF0AudioRecorder,
 ) : ViewModel() {
-    private var timerJob: Job? = null
     private var captureJob: Job? = null
     private var vadJob: Job? = null
+    private var vadChannel: Channel<VoiceHealthVadWindow>? = null
     private var analysisJob: Job? = null
-    private var recordingStartedAtMillis = 0L
+    private var stopping = false
+    private val captureActive = AtomicBoolean(false)
+
+    @Volatile
+    private var validSpeechSeconds = 0.0
+
+    @Volatile
+    private var capturedSamples = 0L
 
     private val bufferLock = Any()
     private var pcmBuffer = FloatArray(INITIAL_BUFFER_SAMPLES)
     private var pcmSize = 0
+    private val vadRollingSamples = FloatArray(VAD_WINDOW_SAMPLES)
+    private var vadRollingWriteIndex = 0
+    private var vadRollingCount = 0
+    private var samplesSinceLastVad = 0
 
     private val mutableState = MutableStateFlow<VoiceHealthUiState>(VoiceHealthUiState.Ready)
     val state: StateFlow<VoiceHealthUiState> = mutableState.asStateFlow()
 
     fun startRecording() {
         if (mutableState.value is VoiceHealthUiState.Recording ||
-            mutableState.value is VoiceHealthUiState.Analyzing
+            mutableState.value is VoiceHealthUiState.Analyzing ||
+            stopping
         ) {
             return
         }
         clearPcm()
         runCatching { recorder.start() }
             .onSuccess {
-                recordingStartedAtMillis = SystemClock.elapsedRealtime()
+                captureActive.set(true)
+                capturedSamples = 0L
+                validSpeechSeconds = 0.0
+                resetVadWindow()
+                val channel = Channel<VoiceHealthVadWindow>(Channel.UNLIMITED)
+                vadChannel = channel
+                vadJob = startVadJob(channel)
+                val amplitudes = mutableListOf(0f)
                 mutableState.value = VoiceHealthUiState.Recording(
                     elapsedSeconds = 0f,
                     validSpeechSeconds = 0f,
+                    amplitudes = amplitudes,
                 )
-                startTimer()
-                startCapture()
-                startVadPolling()
+                startCapture(amplitudes)
             }
-            .onFailure { error ->
+            .onFailure {
                 mutableState.value = VoiceHealthUiState.Error(
-                    error.message ?: context.getString(R.string.voice_health_analysis_failed),
+                    messageRes = R.string.voice_health_analysis_failed,
                 )
             }
     }
 
     fun stopAndAnalyze() {
-        val recording = mutableState.value as? VoiceHealthUiState.Recording ?: return
-        if (recording.validSpeechSeconds < MINIMUM_SPEECH_SECONDS) {
-            cancelRecordingJobs()
-            clearPcm()
-            mutableState.value = VoiceHealthUiState.Error(
-                context.getString(R.string.error_speech_duration_short),
-            )
-            return
-        }
-
-        cancelRecordingJobs()
-        val samples = snapshotPcm()
-        if (samples.size < MINIMUM_SPEECH_SECONDS * RealtimeF0AudioRecorder.SAMPLE_RATE) {
-            clearPcm()
-            mutableState.value = VoiceHealthUiState.Error(
-                context.getString(R.string.error_speech_duration_short),
-            )
-            return
-        }
-        clearPcm()
-        mutableState.value = VoiceHealthUiState.Analyzing()
-        analysisJob?.cancel()
-        analysisJob = viewModelScope.launch(Dispatchers.Default) {
+        if (mutableState.value !is VoiceHealthUiState.Recording || stopping) return
+        stopping = true
+        captureActive.set(false)
+        recorder.pause()
+        viewModelScope.launch {
             try {
-                val result = repository.analyzeVoiceHealth(
-                    samples = samples,
-                    sampleRate = RealtimeF0AudioRecorder.SAMPLE_RATE,
-                    channels = 1,
-                ) { progress ->
-                    mutableState.value = VoiceHealthUiState.Analyzing(progress)
+                captureJob?.join()
+                captureJob = null
+                enqueueVadSnapshot(force = true)
+                vadChannel?.close()
+                vadChannel = null
+                vadJob?.join()
+                vadJob = null
+                recorder.stop()
+
+                if (validSpeechSeconds < MINIMUM_SPEECH_SECONDS) {
+                    clearPcm()
+                    mutableState.value = VoiceHealthUiState.Error(
+                        messageRes = R.string.error_speech_duration_short,
+                    )
+                    return@launch
                 }
-                mutableState.value = VoiceHealthUiState.Success(result)
+                val samples = snapshotPcm()
+                if (samples.size < MINIMUM_SPEECH_SECONDS * SAMPLE_RATE) {
+                    clearPcm()
+                    mutableState.value = VoiceHealthUiState.Error(
+                        messageRes = R.string.error_speech_duration_short,
+                    )
+                    return@launch
+                }
+                clearPcm()
+                mutableState.value = VoiceHealthUiState.Analyzing()
+                analysisJob?.cancel()
+                analysisJob = viewModelScope.launch(Dispatchers.Default) {
+                    analyzeSamples(samples)
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
+                recorder.stop()
+                clearPcm()
                 mutableState.value = VoiceHealthUiState.Error(
-                    error.message ?: context.getString(R.string.voice_health_analysis_failed),
+                    message = error.message,
+                    messageRes = R.string.voice_health_analysis_failed
+                        .takeIf { error.message.isNullOrBlank() },
                 )
+            } finally {
+                stopping = false
             }
         }
     }
@@ -153,79 +187,179 @@ internal class VoiceHealthViewModel(
         repository.close()
     }
 
-    private fun startTimer() {
-        timerJob?.cancel()
-        timerJob = viewModelScope.launch {
-            while (isActive) {
-                val elapsed = elapsedSeconds()
-                mutableState.update { current ->
-                    if (current is VoiceHealthUiState.Recording) {
-                        current.copy(elapsedSeconds = elapsed)
-                    } else {
-                        current
+    private fun startCapture(amplitudes: MutableList<Float>) {
+        captureJob?.cancel()
+        captureJob = viewModelScope.launch(Dispatchers.IO) {
+            val readBuffer = FloatArray(READ_BUFFER_SAMPLES)
+            try {
+                while (isActive && captureActive.get()) {
+                    val count = recorder.read(readBuffer)
+                    if (count <= 0) {
+                        if (!captureActive.get()) break
+                        throw IllegalStateException()
+                    }
+                    ingestCapturedAudio(readBuffer, count, amplitudes)
+                    if (capturedSamples / SAMPLE_RATE.toDouble() >= MAXIMUM_RECORDING_SECONDS) {
+                        captureActive.set(false)
+                        viewModelScope.launch(Dispatchers.Main.immediate) {
+                            stopAndAnalyze()
+                        }
+                        break
                     }
                 }
-                if (elapsed >= MAXIMUM_RECORDING_SECONDS) {
-                    stopAndAnalyze()
-                    break
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                if (captureActive.getAndSet(false)) {
+                    recorder.pause()
+                    vadChannel?.close()
+                    vadChannel = null
+                    vadJob?.cancel()
+                    vadJob = null
+                    clearPcm()
+                    mutableState.value = VoiceHealthUiState.Error(
+                        message = error.message,
+                        messageRes = R.string.voice_health_analysis_failed
+                            .takeIf { error.message.isNullOrBlank() },
+                    )
                 }
-                delay(TIMER_INTERVAL_MILLIS)
             }
         }
     }
 
-    private fun startCapture() {
-        captureJob?.cancel()
-        captureJob = viewModelScope.launch(Dispatchers.Default) {
-            val readBuffer = FloatArray(READ_BUFFER_SAMPLES)
-            while (isActive) {
-                val count = runCatching { recorder.read(readBuffer) }.getOrElse { error ->
-                    if (isActive) {
-                        mutableState.value = VoiceHealthUiState.Error(
-                            error.message
-                                ?: context.getString(R.string.voice_health_analysis_failed),
+    private fun startVadJob(channel: Channel<VoiceHealthVadWindow>): Job =
+        viewModelScope.launch(Dispatchers.Default) {
+            val tracker = SpeechIntervalTracker()
+            for (window in channel) {
+                val validSeconds = try {
+                    repository.detectVad(
+                        samples = window.samples,
+                        sampleRate = SAMPLE_RATE,
+                        channels = 1,
+                    ).forEach { segment ->
+                        val windowStart = window.startSample.toDouble() / SAMPLE_RATE
+                        tracker.add(
+                            startSeconds = windowStart + segment.startSeconds,
+                            endSeconds = windowStart + segment.endSeconds,
                         )
                     }
-                    return@launch
+                    tracker.totalSeconds
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
+                    Log.w(TAG, "Incremental VAD failed", error)
+                    continue
                 }
-                if (count > 0) appendPcm(readBuffer, count)
-            }
-        }
-    }
-
-    private fun startVadPolling() {
-        vadJob?.cancel()
-        vadJob = viewModelScope.launch(Dispatchers.Default) {
-            while (isActive) {
-                delay(VAD_POLL_INTERVAL_MILLIS)
-                val samples = snapshotPcm()
-                if (samples.isEmpty()) continue
-                val validSeconds = runCatching {
-                    repository.detectVad(
-                        samples = samples,
-                        sampleRate = RealtimeF0AudioRecorder.SAMPLE_RATE,
-                        channels = 1,
-                    ).sumOf { (it.endSeconds - it.startSeconds).coerceAtLeast(0.0) }
-                }.getOrDefault(0.0)
+                validSpeechSeconds = validSeconds
                 mutableState.update { current ->
                     if (current is VoiceHealthUiState.Recording) {
                         current.copy(
-                            validSpeechSeconds = validSeconds.toFloat()
-                                .coerceIn(0f, MINIMUM_SPEECH_SECONDS),
+                            validSpeechSeconds = validSeconds.toFloat(),
                         )
                     } else {
                         current
                     }
                 }
             }
+        }
+
+    private fun ingestCapturedAudio(
+        samples: FloatArray,
+        count: Int,
+        amplitudes: MutableList<Float>,
+    ) {
+        appendPcm(samples, count)
+        var peak = 0f
+        for (index in 0 until count) {
+            val sample = samples[index]
+            val absolute = abs(sample)
+            if (absolute > peak) peak = absolute
+            vadRollingSamples[vadRollingWriteIndex] = sample
+            vadRollingWriteIndex = (vadRollingWriteIndex + 1) % vadRollingSamples.size
+            if (vadRollingCount < vadRollingSamples.size) vadRollingCount++
+        }
+        capturedSamples += count
+        samplesSinceLastVad += count
+        while (samplesSinceLastVad >= VAD_STEP_SAMPLES) {
+            enqueueVadSnapshot(force = false)
+            samplesSinceLastVad -= VAD_STEP_SAMPLES
+        }
+
+        val amplitude = sqrt(peak)
+        val previousAmplitude = amplitudes.lastOrNull() ?: 0f
+        amplitudes += previousAmplitude * 0.45f + amplitude * 0.55f
+        val elapsedSeconds = (
+            capturedSamples / SAMPLE_RATE.toDouble()
+            ).toFloat().coerceAtMost(MAXIMUM_RECORDING_SECONDS.toFloat())
+        val amplitudeSnapshot = amplitudes.toList()
+        mutableState.update { current ->
+            if (current is VoiceHealthUiState.Recording) {
+                current.copy(
+                    elapsedSeconds = elapsedSeconds,
+                    validSpeechSeconds = validSpeechSeconds.toFloat(),
+                    amplitudes = amplitudeSnapshot,
+                )
+            } else {
+                current
+            }
+        }
+    }
+
+    private fun enqueueVadSnapshot(force: Boolean) {
+        if (vadRollingCount == 0) return
+        if (!force && samplesSinceLastVad < VAD_STEP_SAMPLES) return
+        val samples = FloatArray(vadRollingCount)
+        val first = (
+            vadRollingWriteIndex - vadRollingCount + vadRollingSamples.size
+            ) % vadRollingSamples.size
+        for (index in samples.indices) {
+            samples[index] = vadRollingSamples[
+                (first + index) % vadRollingSamples.size
+            ]
+        }
+        vadChannel?.trySend(
+            VoiceHealthVadWindow(
+                samples = samples,
+                startSample = capturedSamples - vadRollingCount,
+            ),
+        )
+    }
+
+    private fun resetVadWindow() {
+        vadRollingSamples.fill(0f)
+        vadRollingWriteIndex = 0
+        vadRollingCount = 0
+        samplesSinceLastVad = 0
+    }
+
+    private suspend fun analyzeSamples(samples: FloatArray) {
+        try {
+            val result = repository.analyzeVoiceHealth(
+                samples = samples,
+                sampleRate = SAMPLE_RATE,
+                channels = 1,
+            ) { progress ->
+                mutableState.value = VoiceHealthUiState.Analyzing(progress)
+            }
+            mutableState.value = VoiceHealthUiState.Success(result)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            mutableState.value = VoiceHealthUiState.Error(
+                message = error.message,
+                messageRes = R.string.voice_health_analysis_failed
+                    .takeIf { error.message.isNullOrBlank() },
+            )
         }
     }
 
     private fun cancelRecordingJobs() {
-        timerJob?.cancel()
-        timerJob = null
+        captureActive.set(false)
+        recorder.pause()
         captureJob?.cancel()
         captureJob = null
+        vadChannel?.close()
+        vadChannel = null
         vadJob?.cancel()
         vadJob = null
         recorder.stop()
@@ -256,23 +390,24 @@ internal class VoiceHealthViewModel(
         pcmBuffer = pcmBuffer.copyOf(newSize)
     }
 
-    private fun elapsedSeconds(): Float =
-        ((SystemClock.elapsedRealtime() - recordingStartedAtMillis) / 1000f)
-            .coerceAtLeast(0f)
-
     companion object {
         const val MINIMUM_SPEECH_SECONDS = 5f
         private const val MAXIMUM_RECORDING_SECONDS = 20f
-        private const val TIMER_INTERVAL_MILLIS = 50L
-        private const val VAD_POLL_INTERVAL_MILLIS = 500L
+        private const val VAD_UPDATE_MILLIS = 300
+        private const val VAD_WINDOW_SECONDS = 0.9
+        private const val VAD_STEP_SAMPLES =
+            RealtimeF0AudioRecorder.SAMPLE_RATE * VAD_UPDATE_MILLIS / 1_000
+        private val VAD_WINDOW_SAMPLES =
+            (RealtimeF0AudioRecorder.SAMPLE_RATE * VAD_WINDOW_SECONDS).toInt()
+        private const val SAMPLE_RATE = RealtimeF0AudioRecorder.SAMPLE_RATE
+        private const val TAG = "PitcheeHealthVad"
         private const val INITIAL_BUFFER_SAMPLES = RealtimeF0AudioRecorder.SAMPLE_RATE * 5
-        private const val READ_BUFFER_SAMPLES = 1600
+        private const val READ_BUFFER_SAMPLES = 400
 
         fun factory(context: Context): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val appContext = context.applicationContext
                 VoiceHealthViewModel(
-                    context = appContext,
                     repository = PitcheeRepository(appContext),
                     recorder = RealtimeF0AudioRecorder(appContext),
                 )
@@ -280,3 +415,8 @@ internal class VoiceHealthViewModel(
         }
     }
 }
+
+private data class VoiceHealthVadWindow(
+    val samples: FloatArray,
+    val startSample: Long,
+)

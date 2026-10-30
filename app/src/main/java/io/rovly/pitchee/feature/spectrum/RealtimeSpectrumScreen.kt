@@ -2,6 +2,7 @@ package io.rovly.pitchee.feature.spectrum
 
 import io.rovly.pitchee.ui.theme.PitcheeColorTokens
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
@@ -20,7 +21,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +62,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -68,6 +71,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.rovly.pitchee.R
@@ -80,13 +84,24 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 
 @Composable
-internal fun RealtimeSpectrumScreen(onBack: (() -> Unit)? = null) {
+internal fun RealtimeSpectrumScreen(
+    onBack: (() -> Unit)? = null,
+    onSpectrumChromeChange: (Boolean) -> Unit = {},
+) {
     val context = LocalContext.current
+    val view = LocalView.current
+    val currentOnSpectrumChromeChange by rememberUpdatedState(onSpectrumChromeChange)
     val factory = remember { SpectrumViewModel.factory(context.applicationContext) }
     val viewModel: SpectrumViewModel = viewModel(factory = factory)
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    fun exitSpectrum() {
+        currentOnSpectrumChromeChange(false)
+        onBack?.invoke()
+    }
+
     if (onBack != null) {
-        BackHandler(onBack = onBack)
+        BackHandler(onBack = ::exitSpectrum)
     }
     val lastPageMessage = stringResource(R.string.spectrum_last_page)
     val rewindMessageFormat = stringResource(R.string.spectrum_rewind_seconds)
@@ -130,6 +145,25 @@ internal fun RealtimeSpectrumScreen(onBack: (() -> Unit)? = null) {
         onDispose { viewModel.stop() }
     }
 
+    DisposableEffect(view) {
+        currentOnSpectrumChromeChange(true)
+        val window = (context as? Activity)?.window
+        val insetsController = window?.let { WindowCompat.getInsetsController(it, view) }
+        val previousLightStatusBars = insetsController?.isAppearanceLightStatusBars
+        val previousLightNavigationBars = insetsController?.isAppearanceLightNavigationBars
+        insetsController?.isAppearanceLightStatusBars = false
+        insetsController?.isAppearanceLightNavigationBars = false
+        onDispose {
+            currentOnSpectrumChromeChange(false)
+            if (previousLightStatusBars != null) {
+                insetsController.isAppearanceLightStatusBars = previousLightStatusBars
+            }
+            if (previousLightNavigationBars != null) {
+                insetsController.isAppearanceLightNavigationBars = previousLightNavigationBars
+            }
+        }
+    }
+
     fun toggleAnalysis() {
         transientRewindMessage = null
         if (state.mode == SpectrumMode.IDLE) {
@@ -156,7 +190,7 @@ internal fun RealtimeSpectrumScreen(onBack: (() -> Unit)? = null) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .background(SPECTRUM_DARK_BACKGROUND),
     ) {
         SpectrumChart(
             frames = state.frames,
@@ -172,8 +206,10 @@ internal fun RealtimeSpectrumScreen(onBack: (() -> Unit)? = null) {
         ) {
             ScreenTitle(
                 title = stringResource(R.string.spectrum_title),
-                subtitle = stringResource(R.string.spectrum_subtitle),
-                onBack = onBack,
+                onBack = if (onBack != null) ::exitSpectrum else null,
+                titleColor = SPECTRUM_CHROME_CONTENT,
+                backContainerColor = SPECTRUM_CONTROL_BACKGROUND,
+                backContentColor = SPECTRUM_CHROME_CONTENT,
             )
         }
 
@@ -186,7 +222,7 @@ internal fun RealtimeSpectrumScreen(onBack: (() -> Unit)? = null) {
                 },
                 modifier = Modifier.align(Alignment.Center),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = PitcheeColorTokens.SpectrumAxis,
             )
         }
 
@@ -201,7 +237,7 @@ internal fun RealtimeSpectrumScreen(onBack: (() -> Unit)? = null) {
                     text = message,
                     modifier = Modifier.padding(bottom = 10.dp),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = PitcheeColorTokens.SpectrumAxis,
                     textAlign = TextAlign.End,
                 )
             }
@@ -210,7 +246,7 @@ internal fun RealtimeSpectrumScreen(onBack: (() -> Unit)? = null) {
                     text = error,
                     modifier = Modifier.padding(bottom = 10.dp),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
+                    color = SPECTRUM_ERROR,
                     textAlign = TextAlign.End,
                 )
             }
@@ -219,7 +255,7 @@ internal fun RealtimeSpectrumScreen(onBack: (() -> Unit)? = null) {
                     text = stringResource(R.string.record_permission_denied),
                     modifier = Modifier.padding(bottom = 10.dp),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
+                    color = SPECTRUM_ERROR,
                     textAlign = TextAlign.End,
                 )
             }
@@ -266,21 +302,20 @@ private fun SpectrumControls(
         animationSpec = spring(dampingRatio = 0.78f, stiffness = 280f),
         label = "spectrum-controls-padding",
     )
-    val darkTheme = isSystemInDarkTheme()
     val containerColor by animateColorAsState(
         targetValue = if (toolbarExpanded) {
-            if (darkTheme) MaterialTheme.colorScheme.surfaceContainerHigh else DARK_TOOLBAR_BACKGROUND
+            SPECTRUM_CONTROL_BACKGROUND
         } else {
-            if (darkTheme) MaterialTheme.colorScheme.primary else DARK_TOOLBAR_COLLAPSED_BACKGROUND
+            SPECTRUM_CONTROL_ACCENT
         },
         animationSpec = spring(dampingRatio = 0.78f, stiffness = 280f),
         label = "spectrum-controls-color",
     )
     val contentColor by animateColorAsState(
         targetValue = if (toolbarExpanded) {
-            if (darkTheme) MaterialTheme.colorScheme.onSurface else DARK_TOOLBAR_CONTENT
+            SPECTRUM_CHROME_CONTENT
         } else {
-            if (darkTheme) MaterialTheme.colorScheme.onPrimary else DARK_TOOLBAR_COLLAPSED_CONTENT
+            SPECTRUM_DARK_BACKGROUND
         },
         animationSpec = spring(dampingRatio = 0.78f, stiffness = 280f),
         label = "spectrum-controls-content",
@@ -295,10 +330,24 @@ private fun SpectrumControls(
         shape = CircleShape,
         color = containerColor,
         contentColor = contentColor,
-        tonalElevation = 3.dp,
+        tonalElevation = if (showToolbar) 3.dp else 0.dp,
         shadowElevation = 5.dp,
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (!showToolbar && mode != SpectrumMode.PREPARING) {
+                        Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onToggle,
+                        )
+                    } else {
+                        Modifier
+                    },
+                ),
+        ) {
             if (showToolbar) {
                 ControlIconButton(
                     iconRes = R.drawable.ic_rewind_arrow,
@@ -336,18 +385,28 @@ private fun SpectrumControls(
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    tonalElevation = 3.dp,
+                    color = if (showToolbar) {
+                        SPECTRUM_CONTROL_ACCENT
+                    } else {
+                        Color.Transparent
+                    },
+                    contentColor = SPECTRUM_DARK_BACKGROUND,
+                    tonalElevation = if (showToolbar) 3.dp else 0.dp,
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                enabled = mode != SpectrumMode.PREPARING,
-                                onClick = onToggle,
+                            .then(
+                                if (showToolbar) {
+                                    Modifier.clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        enabled = mode != SpectrumMode.PREPARING,
+                                        onClick = onToggle,
+                                    )
+                                } else {
+                                    Modifier
+                                },
                             ),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -355,7 +414,7 @@ private fun SpectrumControls(
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
                                 strokeWidth = 2.5.dp,
-                                color = MaterialTheme.colorScheme.onPrimary,
+                                color = SPECTRUM_DARK_BACKGROUND,
                             )
                         } else {
                             Icon(
@@ -399,6 +458,10 @@ private fun ControlIconButton(
             onClick()
         },
         modifier = modifier.size(48.dp),
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = SPECTRUM_CONTROL_ACCENT,
+            contentColor = SPECTRUM_DARK_BACKGROUND,
+        ),
     ) {
         Icon(
             painter = painterResource(iconRes),
@@ -643,10 +706,10 @@ private fun formatFrequencyAxis(hz: Float): String =
 
 private val FREQUENCY_GRID_HZ = listOf(8000f, 4000f, 2000f, 1000f, 500f, 250f, 125f)
 private val SPECTRUM_DARK_BACKGROUND = PitcheeColorTokens.SpectrumBackground
-private val DARK_TOOLBAR_BACKGROUND = PitcheeColorTokens.DarkToolbarBackground
-private val DARK_TOOLBAR_CONTENT = PitcheeColorTokens.DarkToolbarContent
-private val DARK_TOOLBAR_COLLAPSED_BACKGROUND = PitcheeColorTokens.DarkToolbarCollapsedBackground
-private val DARK_TOOLBAR_COLLAPSED_CONTENT = PitcheeColorTokens.DarkToolbarCollapsedContent
+private val SPECTRUM_CONTROL_BACKGROUND = PitcheeColorTokens.PlayerSurfaceDark
+private val SPECTRUM_CONTROL_ACCENT = PitcheeColorTokens.PlayerAccentDark
+private val SPECTRUM_CHROME_CONTENT = PitcheeColorTokens.PlayerContentDark
+private val SPECTRUM_ERROR = Color(0xFFFFB4AB)
 private const val SPECTRUM_WINDOW_SECONDS = 5.0
 private const val SPECTRUM_BITMAP_WIDTH = 313
 private const val SPECTRUM_BITMAP_HEIGHT = 256

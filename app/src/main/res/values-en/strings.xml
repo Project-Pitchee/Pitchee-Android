@@ -4,6 +4,18 @@
 
     <string name="settings_title">Settings</string>
     <string name="settings_language">Language</string>
+    <string name="settings_theme">Theme</string>
+    <string name="theme_coral">Coral</string>
+    <string name="theme_rose">Rose</string>
+    <string name="theme_ocean">Sea Glass</string>
+    <string name="theme_forest">Forest</string>
+    <string name="theme_indigo">Indigo</string>
+    <string name="theme_amber">Amber</string>
+    <string name="settings_advanced">Advanced</string>
+    <string name="settings_advanced_desc">Pitch and performance</string>
+    <string name="settings_version_format">Version %1$s</string>
+    <string name="settings_about_tagline">On-device voice analysis</string>
+    <string name="settings_open_source_count">%1$d items</string>
     <string name="language_chinese">中文</string>
     <string name="language_english">English</string>
     <string name="settings_f0_title">Pitch</string>
@@ -26,9 +38,10 @@
     <string name="passage_source_custom">Custom</string>
     <string name="save_passage">Save passage</string>
     <string name="custom_passage_active">Using your custom passage</string>
-    <string name="settings_app">App</string>
+    <string name="settings_app">Updates</string>
     <string name="settings_current_version">Current version</string>
     <string name="settings_check_updates">Check for updates</string>
+    <string name="settings_updates_title">Updates</string>
     <string name="settings_auto_updates">Check automatically</string>
     <string name="settings_auto_updates_desc">Check GitHub for new releases at launch</string>
     <string name="update_up_to_date">You are on the latest version</string>
@@ -154,7 +167,7 @@
     <string name="dashboard_no_valid_f0">No valid pitch in the latest session</string>
     <string name="dashboard_latest_f0">Latest: %1$.0f Hz</string>
     <string name="dashboard_metric_chart">Assessment trend</string>
-    <string name="dashboard_metric_f0">pitch</string>
+    <string name="dashboard_metric_f0">Pitch</string>
     <string name="dashboard_metric_naturalness">Naturalness</string>
     <string name="dashboard_metric_standard">Timbre Score</string>
     <string name="dashboard_metric_variation">Pitch Variation</string>
@@ -224,7 +237,7 @@
     <string name="pitch_last_page">Last page</string>
     <string name="pitch_resume_analysis">Resume analysis</string>
     <string name="pitch_start_monitoring">Start monitoring</string>
-    <string name="pitch_stop_monitoring">Stop monitoring</string>
+    <string name="pitch_stop_monitoring">Pause analysis</string>
     <string name="spectrum_title">Spectrum</string>
     <string name="spectrum_subtitle">Live frequency distribution</string>
     <string name="spectrum_preparing">Preparing spectrum analysis</string>
@@ -250,12 +263,22 @@
     <string name="piano_subtitle">Tap to play, hold to sustain</string>
     <string name="more_voice_health_title">Voice Health</string>
     <string name="more_voice_health_description">Check vocal stability and hoarseness</string>
+    <string name="knowledge_base_title">Voice Library</string>
+    <string name="knowledge_category_rules">Scoring Guides</string>
+    <string name="knowledge_category_practice">Practice Guides</string>
+    <string name="knowledge_article_load_failed">Couldn’t load the article</string>
+    <string name="knowledge_article_load_failed_desc">Try opening it again in a moment.</string>
+    <string name="knowledge_article_source">Content from Pitchee Articles</string>
+    <string name="knowledge_related_reading">Related reading</string>
+    <string name="knowledge_open_metric_guide">Open the %1$s guide</string>
     <string name="voice_health_title">Voice Health</string>
     <string name="voice_health_subtitle">Speak naturally for a few seconds at a normal volume and distance</string>
     <string name="voice_health_stop">Stop and analyze</string>
     <string name="voice_health_analyzing">Analyzing voice health</string>
     <string name="voice_health_minimum_duration">Record at least 5 seconds</string>
-    <string name="voice_health_valid_speech">Valid speech %1$.1f / 5.0 s</string>
+    <string name="voice_health_valid_speech">%1$.1f / 5.0 s</string>
+    <string name="voice_capture_progress">%1$.1f / %2$.1f s</string>
+    <string name="analysis_recording_minimum">At least 5 seconds</string>
     <string name="voice_health_need_more_speech">Analysis unlocks when the bar is full</string>
     <string name="voice_health_stage_preparing">Preparing voice health analysis</string>
     <string name="voice_health_stage_extracting">Extracting voice features</string>
@@ -275,6 +298,7 @@
     <string name="analysis_inference_title">Analyze your voice</string>
     <string name="click_to_record">Tap to start recording</string>
     <string name="recording_elapsed">Recording, %1$.1f s</string>
+    <string name="recording_speech_progress">%1$.1f / 5.0 s</string>
     <string name="analysis_phase_audio">Reading recording</string>
     <string name="analysis_phase_models">Loading models</string>
     <string name="analysis_phase_inference">Analyzing voice</string>
@@ -305,11 +329,11 @@
     <string name="insight_rule_continuous">Continuous scoring</string>
     <string name="insight_desc_f0_unavailable">No reliable pitch was found, so the final score uses the timbre score.</string>
     <string name="insight_desc_qualified_boost">When all three conditions are met, the final score moves into the 60–100 range.</string>
-    <string name="insight_desc_high_f0_low_naturalness">Pitch is high, but naturalness is below 50.</string>
-    <string name="insight_desc_low_f0">Naturalness passes, but pitch is not above 165 Hz.</string>
-    <string name="insight_desc_low_f0_low_naturalness">Pitch is not above 165 Hz and naturalness is below 50.</string>
-    <string name="insight_desc_timbre_cap">Pitch is above 165 Hz, but timbre remains below 50.</string>
-    <string name="insight_desc_continuous">No cap or boost was triggered, so the continuous formula was used.</string>
+    <string name="insight_desc_high_f0_low_naturalness">Pitch is high, but naturalness is below 50, limiting the final score.</string>
+    <string name="insight_desc_low_f0">Naturalness passes, but pitch is below 165 Hz, limiting the final score.</string>
+    <string name="insight_desc_low_f0_low_naturalness">Pitch is below 165 Hz and naturalness is below 50, together limiting the final score.</string>
+    <string name="insight_desc_timbre_cap">Pitch is above 165 Hz, but the timbre score is below 50, limiting the final score.</string>
+    <string name="insight_desc_continuous">No cap or boost was triggered this time.</string>
     <string name="insight_impact_timbre">Final = timbre score</string>
     <string name="insight_impact_boost_format">Boost +%1$.1f</string>
     <string name="insight_impact_boost_met">Boost conditions met</string>
@@ -335,8 +359,12 @@
     <string name="score_pass_label">Result</string>
     <string name="score_pass_title">Your voice passes</string>
     <string name="score_pass_desc">No main bottleneck rule was triggered.</string>
+    <string name="score_suggestions_title">Suggestions</string>
+    <string name="score_suggestions_all">All articles</string>
+    <string name="score_suggestions_none">There isn’t a matching article for this result yet.</string>
     <string name="score_view_rules">View scoring details</string>
     <string name="score_final_score">Final score</string>
+    <string name="score_pass_threshold_hint">60 is the passing score.</string>
     <string name="score_current_metrics">Current metrics</string>
     <string name="score_current_rule">Current scoring rule</string>
     <string name="score_other_rules">Other rules</string>
@@ -359,6 +387,7 @@
     <string name="score_value_score">%1$.1f</string>
     <string name="score_value_hz">%1$.0f Hz</string>
     <string name="score_value_not_detected">Not detected</string>
+    <string name="score_tier_fail">Not passed</string>
     <string name="score_tier_limiter">Score limiter</string>
     <string name="score_tier_fair">Fair</string>
     <string name="score_tier_good">Good</string>
@@ -366,39 +395,39 @@
     <string name="score_tier_excellent">Excellent</string>
     <string name="score_metrics_toggle">Timbre Score / pitch metrics</string>
     <string name="score_compare">Compare</string>
-    <string name="score_f0_range_note">pitch uses a 110–200 Hz display range. The rule threshold is 165 Hz.</string>
-    <string name="score_f0_range_note_masculine">pitch uses a 110–200 Hz display range. Lower pitch below 165 Hz raises the masculine score.</string>
+    <string name="score_f0_range_note">*Mapped across 100–250 Hz</string>
+    <string name="score_f0_range_note_masculine">*Masculine pitch score = (250 − F0) ÷ 150 × 100</string>
     <string name="score_rules_title">Scoring rules</string>
     <string name="score_rules_subtitle">See how the final score is calculated from the current metrics</string>
     <string name="pitch_average_f0_format">Avg %1$.0f Hz</string>
     <string name="rule_doc_continuous_title">Continuous scoring</string>
-    <string name="rule_doc_continuous_guidance">No special limit was triggered. Keep the same pace to watch the trend.</string>
+    <string name="rule_doc_continuous_guidance">A basic “Pass”—at or above the passing line. Keep things as they are.</string>
     <string name="rule_doc_continuous_condition">No cap or boost rule below is triggered</string>
     <string name="rule_doc_continuous_handling">The final score uses Base.</string>
     <string name="rule_doc_boost_title">Qualified boost</string>
-    <string name="rule_doc_boost_guidance">All three metrics passed. Keep a comfortable pitch and pace to stay consistent.</string>
-    <string name="rule_doc_boost_condition">pitch > 165, Naturalness > 80, Standard > 50</string>
+    <string name="rule_doc_boost_guidance">A clear “Pass.” Congratulations—keep it up.</string>
+    <string name="rule_doc_boost_condition">F0 > 165, Naturalness > 80, Standard > 50</string>
     <string name="rule_doc_boost_handling">The maximum final score is 100. If promoted > Base, promoted is used.</string>
     <string name="rule_doc_high_f0_stylized_title">High pitch, low naturalness cap</string>
-    <string name="rule_doc_high_f0_stylized_guidance">Pitch is high, but naturalness has not caught up. Relax the delivery before raising pitch further.</string>
-    <string name="rule_doc_high_f0_stylized_condition">pitch > 165, Naturalness &lt; 50</string>
-    <string name="rule_doc_high_f0_stylized_handling">The maximum final score is 30. Try natural speech first, then raise pitch.</string>
+    <string name="rule_doc_high_f0_stylized_guidance">This result comes from forcing pitch higher in a way that makes phonation less healthy. Stay within your comfortable limits.</string>
+    <string name="rule_doc_high_f0_stylized_condition">F0 > 165, Naturalness &lt; 50</string>
+    <string name="rule_doc_high_f0_stylized_handling">The final score is capped at 30.</string>
     <string name="rule_doc_low_f0_natural_title">Low pitch cap</string>
-    <string name="rule_doc_low_f0_natural_guidance">Naturalness is already good. Focus on pitch without forcing your voice higher.</string>
-    <string name="rule_doc_low_f0_natural_condition">pitch ≤ 165, Naturalness ≥ 50</string>
-    <string name="rule_doc_low_f0_natural_handling">The maximum final score is 59. Next time, try a slightly higher but comfortable pitch.</string>
+    <string name="rule_doc_low_f0_natural_guidance">Naturalness is already good. Focus on pitch next.</string>
+    <string name="rule_doc_low_f0_natural_condition">F0 ≤ 165, Naturalness ≥ 50</string>
+    <string name="rule_doc_low_f0_natural_handling">The final score is capped at 59.</string>
     <string name="rule_doc_low_f0_stylized_title">Low pitch and low naturalness</string>
-    <string name="rule_doc_low_f0_stylized_guidance">Both pitch and naturalness need attention. Slow down and finish each sentence naturally.</string>
-    <string name="rule_doc_low_f0_stylized_condition">pitch ≤ 165, Naturalness &lt; 50</string>
-    <string name="rule_doc_low_f0_stylized_handling">The maximum final score is 20. Relax the delivery before raising pitch gradually.</string>
+    <string name="rule_doc_low_f0_stylized_guidance">Both pitch and naturalness need attention. Read the full passage naturally from beginning to end.</string>
+    <string name="rule_doc_low_f0_stylized_condition">F0 ≤ 165, Naturalness &lt; 50</string>
+    <string name="rule_doc_low_f0_stylized_handling">The final score is capped at 20.</string>
     <string name="rule_doc_high_f0_male_title">Timbre score cap</string>
-    <string name="rule_doc_high_f0_male_guidance">Pitch and naturalness pass. Focus on a brighter, lighter timbre.</string>
-    <string name="rule_doc_high_f0_male_condition">pitch > 165, Naturalness ≥ 50, Standard &lt; 50</string>
-    <string name="rule_doc_high_f0_male_handling">The maximum final score is 59. Watch how Standard changes next time.</string>
+    <string name="rule_doc_high_f0_male_guidance">Your voice stays natural at a higher pitch, so pitch is not the issue here. Next, try shortening the vocal tract and moving the resonance focus forward. This may include moving the tongue forward and spreading the lips, among other approaches.</string>
+    <string name="rule_doc_high_f0_male_condition">F0 > 165, Naturalness ≥ 50, Standard &lt; 50</string>
+    <string name="rule_doc_high_f0_male_handling">The final score is capped at 59.</string>
     <string name="rule_doc_f0_unavailable_title">Pitch unavailable</string>
     <string name="rule_doc_f0_unavailable_guidance">No stable pitch was detected. Try moving closer to the microphone.</string>
     <string name="rule_doc_f0_unavailable_condition">Pitch unavailable</string>
-    <string name="rule_doc_f0_unavailable_handling">The final score directly uses the timbre score Standard.</string>
+    <string name="rule_doc_f0_unavailable_handling">The final score directly uses the timbre score.</string>
     <string name="rule_doc_masculine_continuous_title">Masculine continuous scoring</string>
     <string name="rule_doc_masculine_continuous_guidance">Pitch below 165 Hz and a less feminine timbre raise the masculine score.</string>
     <string name="rule_doc_masculine_continuous_condition">Applies to any recording that can be analyzed.</string>
@@ -410,29 +439,19 @@
 
     <string-array name="reading_passage_titles">
         <item>The North Wind and the Sun</item>
-        <item>The Crow and the Pitcher</item>
-        <item>The Little Horse Crosses the River</item>
-        <item>The Tortoise and the Hare</item>
-        <item>The Fox and the Grapes</item>
-        <item>The Ant and the Grasshopper</item>
-        <item>The Farmer and the Snake</item>
-        <item>The Lion and the Mouse</item>
-        <item>The Town Mouse and the Country Mouse</item>
-        <item>The Fox and the Crow</item>
-        <item>The Two Travelers and the Bear</item>
+        <item>Separation of Tasks</item>
+        <item>Social Time</item>
+        <item>The Dichotomy of Control</item>
+        <item>Flow</item>
+        <item>Sunk Cost</item>
     </string-array>
     <string-array name="reading_passage_texts">
-        <item>The North Wind and the Sun argued about who was stronger. A traveler came down the road, so they agreed that whoever made him remove his coat would win. The wind blew hard, but the traveler held his coat tighter. The sun shone warmly until the traveler took off the coat himself.</item>
-        <item>A thirsty crow searched everywhere for water. It found a pitcher with water inside, but the water was too low for its beak to reach. The crow dropped one small stone after another into the pitcher. The water rose slowly, and at last the crow could drink.</item>
-        <item>A little horse had to carry half a bag of wheat to the mill. A river blocked the road. The ox said it was shallow, while the squirrel said it was deep. The horse asked its mother, who told it to try for itself. The horse stepped in carefully and learned that the river was neither as shallow nor as deep as the others had said.</item>
-        <item>The hare laughed at the tortoise for being slow, so the tortoise challenged him to a race. The hare ran far ahead and, certain of victory, stopped for a nap. The tortoise kept walking steadily, passed the sleeping hare, and reached the finish line first.</item>
-        <item>A hungry fox saw a bunch of grapes hanging from a vine. He jumped again and again but could not reach them. At last he walked away and said, “Those grapes are probably sour anyway.” People often call something worthless when they cannot have it.</item>
-        <item>Through the summer, the ants stored food while the grasshopper sang and played. The grasshopper laughed at them for working so hard. When winter came, he had nothing to eat and asked the ants for help. They reminded him that preparing in summer prevents hunger in winter.</item>
-        <item>On a cold winter day, a farmer found a frozen snake by the road and carried it inside his coat. When the snake revived, it bit him. The farmer regretted helping a creature whose nature had not changed.</item>
-        <item>A lion caught a tiny mouse. The mouse begged to be released and promised to repay him. The lion thought such a small creature could never help, but let it go. Later, the mouse gnawed through a hunter’s net and set the lion free.</item>
-        <item>A country mouse invited a town mouse to a simple meal. The town mouse called it plain and invited him to the city. They had barely started eating when cats and dogs appeared. The country mouse ran home, deciding that peace mattered more than luxury.</item>
-        <item>A crow sat in a tree with a piece of meat. Wanting it, the fox praised the crow’s feathers and voice. Flattered, the crow opened its beak to sing, and the meat fell. The fox picked it up and said not to trust flattery too easily.</item>
-        <item>Two travelers met a bear on the road. One climbed a tree, while the other fell to the ground and pretended to be dead. The bear sniffed his face, believed he was not breathing, and walked away. Later, the man in the tree asked what the bear had said. “It said not to trust a friend who abandons you in danger.”</item>
+        <item>The North Wind and the Sun were arguing over which of them was stronger. A traveler wrapped in a cloak came along the road. They agreed that whoever could make the traveler remove the cloak would be considered the stronger. The North Wind went first. It gathered all its force and blew fiercely at the traveler. But the harder it blew, the more tightly the traveler pulled the cloak around himself. The North Wind grew tired and finally fell still. Then the Sun came out from behind the clouds and first shone gently. Feeling the warmth, the traveler loosened the cloak. The Sun rose higher, the air grew hot, and at last the traveler took off the cloak himself and sat down to rest in the shade. The North Wind had to admit that the Sun was stronger. Gentleness and patience can sometimes achieve more than force.</item>
+        <item>Adlerian psychology divides problems in relationships into “my tasks” and “other people’s tasks.” How I speak, whether I am honest, and which consequences I am willing to accept are my tasks. Whether another person understands, agrees, or changes is their task. Separation of tasks is not indifference, nor is it a refusal to care. It means not making choices for others and not allowing their judgments to take over my life. Clear boundaries can make it easier to meet people as equals, with greater stability and respect.</item>
+        <item>Social time is not the even flow of physical time measured by a clock. It is a rhythm and order shaped collectively by a group. Holidays, work cycles, life stages, and generational memory all give time meaning. Through institutions and customs, a society also tells people when they should study, work, or start a family, subtly shaping our sense of “too early” and “too late.” Seeing these arrangements does not require rejecting every rule. It helps us distinguish rhythms that genuinely fit us from timetables written on our behalf by others.</item>
+        <item>Stoic philosophy divides things into two categories: what is within our control and what is not. Judgment, choice, and effort belong to the first; other people’s opinions, facts that have already happened, the weather, and final outcomes belong to the second. Much suffering comes from pouring energy into what we cannot control while neglecting the place where we can act. The dichotomy of control is not about abandoning goals. It means doing our part and then returning what is not ours to the world. We can still act with care without turning every outcome into a verdict on ourselves.</item>
+        <item>Flow is a state of deep involvement in which people lose track of time and of excessive self-consciousness. It tends to appear in activities with clear goals, prompt feedback, and a challenge that roughly matches one’s ability. Tasks that are too easy create boredom, while tasks that are too difficult create anxiety. When the challenge is slightly beyond the current level of skill, attention gathers naturally around the work itself. Flow is not a demand to be productive at every moment. It is the discovery of a sustainable rhythm in which concentration becomes part of the experience.</item>
+        <item>A sunk cost is time, money, or emotion that has already been spent and cannot be recovered. Rationally, whether to continue or stop should depend only on future benefits and costs. Yet people often refuse to leave because they have already invested so much. The more we cling to the past, the easier it becomes to keep adding to it. Recognizing a sunk cost does not deny that the earlier effort was sincere. It acknowledges that the value of some pursuits has come to an end. The hardest choice is often not starting over, but allowing ourselves to stop.</item>
     </string-array>
     <string name="passage_custom_title">Custom passage</string>
     <string name="error_permission_missing">Microphone permission is required</string>
@@ -498,6 +517,7 @@
     <string name="settings_author_lvy_url">https://github.com/HaoduyouduDev</string>
     <string name="settings_author_ryo_url">https://github.com/RyouDYFZ</string>
     <string name="settings_license_material_icons">Material Symbols (Apache-2.0)</string>
+    <string name="settings_license_pitchee_articles">Pitchee Articles (GPL-3.0-only)</string>
     <string name="onboarding_welcome_title">Know Yourself
 Through Your Voice</string>
     <string name="onboarding_welcome_subtitle">Pitchee turns your voice into clear, trackable feedback and follows every change with you.</string>
@@ -516,4 +536,6 @@ Through Your Voice</string>
     <string name="voice_profile_masculine_title">Masculine-Leaning Voice</string>
     <string name="voice_profile_masculine_description">Explore a lower, fuller sound</string>
     <string name="settings_voice_goal">Voice Goal</string>
+    <string name="settings_voice_goal_feminine_desc">Higher pitch with a brighter timbre</string>
+    <string name="settings_voice_goal_masculine_desc">Lower pitch with a deeper timbre</string>
 </resources>

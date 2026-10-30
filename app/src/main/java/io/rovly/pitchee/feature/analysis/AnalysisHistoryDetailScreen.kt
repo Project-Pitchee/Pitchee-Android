@@ -18,8 +18,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,9 +36,16 @@ import io.rovly.pitchee.data.model.FeminineTimeline
 import io.rovly.pitchee.data.model.PitcheeResult
 import io.rovly.pitchee.data.model.scoreSpeechSegments
 import io.rovly.pitchee.data.repository.PitcheeRepository
+import io.rovly.pitchee.feature.knowledge.KNOWLEDGE_LIBRARY_ROUTE
+import io.rovly.pitchee.feature.knowledge.KnowledgeArticleKey
+import io.rovly.pitchee.feature.knowledge.KnowledgeBaseScreen
+import io.rovly.pitchee.feature.knowledge.knowledgeArticleFromRoute
+import io.rovly.pitchee.feature.knowledge.routeToken
 import io.rovly.pitchee.ui.common.ScreenTitle
+import io.rovly.pitchee.ui.common.ScreenTransition
 import io.rovly.pitchee.ui.common.SwipeBackContainer
 import java.io.File
+import kotlin.math.abs
 import space.pitchee.core.PitcheeScoreProfile
 
 private sealed interface HistoryDetailState {
@@ -62,8 +71,19 @@ internal fun AnalysisHistoryDetailScreen(
         mutableStateOf<HistoryDetailState>(HistoryDetailState.Loading)
     }
     var showingRules by remember { mutableStateOf(false) }
+    var knowledgeRoute by rememberSaveable(entry.timestampMillis) {
+        mutableStateOf<String?>(null)
+    }
+    var knowledgeZStep by remember { mutableFloatStateOf(1f) }
     val missingResultMessage = stringResource(R.string.error_analysis_result_missing)
     val openAnalysisMessage = stringResource(R.string.error_analysis_open)
+
+    fun setKnowledgeRoute(route: String?) {
+        if (route == knowledgeRoute) return
+        val magnitude = abs(knowledgeZStep) + 1f
+        knowledgeZStep = if (route != null) magnitude else -magnitude
+        knowledgeRoute = route
+    }
 
     DisposableEffect(repository) {
         onDispose { repository.close() }
@@ -104,17 +124,21 @@ internal fun AnalysisHistoryDetailScreen(
     }
 
     BackHandler {
-        if (showingRules) {
-            showingRules = false
-        } else {
-            onBack()
+        when {
+            knowledgeRoute != null -> setKnowledgeRoute(null)
+            showingRules -> showingRules = false
+            else -> onBack()
         }
     }
 
     SwipeBackContainer(
         enabled = true,
         onBack = {
-            if (showingRules) showingRules = false else onBack()
+            when {
+                knowledgeRoute != null -> setKnowledgeRoute(null)
+                showingRules -> showingRules = false
+                else -> onBack()
+            }
         },
     ) {
         Surface(
@@ -162,23 +186,44 @@ internal fun AnalysisHistoryDetailScreen(
             }
 
             is HistoryDetailState.Loaded -> {
-                if (showingRules) {
-                    HistoryRulesView(
-                        result = current.result,
-                        previousScore = current.previousScore,
-                        previousMetrics = current.previousMetrics,
-                        onBack = { showingRules = false },
-                    )
-                } else {
-                    HistoryResultView(
-                        result = current.result,
-                        audio = current.audio,
-                        timestampMillis = entry.timestampMillis,
-                        previousScore = current.previousScore,
-                        previousMetrics = current.previousMetrics,
-                        onBack = onBack,
-                        onOpenRules = { showingRules = true },
-                    )
+                ScreenTransition(
+                    targetState = knowledgeRoute,
+                    forward = knowledgeRoute != null,
+                    contentZIndex = if (knowledgeRoute != null) {
+                        abs(knowledgeZStep)
+                    } else {
+                        -abs(knowledgeZStep)
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    label = "history-knowledge-page",
+                ) { knowledgeTarget ->
+                    when {
+                        knowledgeTarget != null -> KnowledgeBaseScreen(
+                            initialArticleKey = knowledgeArticleFromRoute(knowledgeTarget),
+                            onBack = { setKnowledgeRoute(null) },
+                        )
+                        showingRules -> HistoryRulesView(
+                            result = current.result,
+                            previousScore = current.previousScore,
+                            previousMetrics = current.previousMetrics,
+                            onBack = { showingRules = false },
+                        )
+                        else -> HistoryResultView(
+                            result = current.result,
+                            audio = current.audio,
+                            timestampMillis = entry.timestampMillis,
+                            previousScore = current.previousScore,
+                            previousMetrics = current.previousMetrics,
+                            onBack = onBack,
+                            onOpenRules = { showingRules = true },
+                            onOpenKnowledgeArticle = { key ->
+                                setKnowledgeRoute(key.routeToken())
+                            },
+                            onOpenKnowledgeBase = {
+                                setKnowledgeRoute(KNOWLEDGE_LIBRARY_ROUTE)
+                            },
+                        )
+                    }
                 }
             }
             }
@@ -195,6 +240,8 @@ private fun HistoryResultView(
     previousMetrics: PreviousMetrics?,
     onBack: () -> Unit,
     onOpenRules: () -> Unit,
+    onOpenKnowledgeArticle: (KnowledgeArticleKey) -> Unit,
+    onOpenKnowledgeBase: () -> Unit,
 ) {
     val timeline = remember(result, audio?.durationSeconds) {
         audio?.let { FeminineTimeline.from(result, it.durationSeconds) }
@@ -224,6 +271,8 @@ private fun HistoryResultView(
             previousMetrics = previousMetrics,
             animateScore = false,
             onOpenRules = onOpenRules,
+            onOpenKnowledgeArticle = onOpenKnowledgeArticle,
+            onOpenKnowledgeBase = onOpenKnowledgeBase,
             audioPlayer = audio?.let { recordedAudio ->
                 {
                     RecordedAudioTimeline(
@@ -253,7 +302,6 @@ private fun HistoryRulesView(
     ) {
         ScreenTitle(
             title = stringResource(R.string.history_detail_rules),
-            subtitle = stringResource(R.string.history_detail_rules_subtitle),
             onBack = onBack,
         )
         Spacer(Modifier.height(20.dp))

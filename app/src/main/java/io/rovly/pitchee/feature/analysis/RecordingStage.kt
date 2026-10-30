@@ -56,6 +56,7 @@ import io.rovly.pitchee.feature.settings.PASSAGE_MAX_LINES
 import io.rovly.pitchee.feature.settings.PassagePreferences
 import io.rovly.pitchee.feature.settings.adaptivePassagePages
 import io.rovly.pitchee.ui.common.ScreenTitle
+import io.rovly.pitchee.ui.common.VoiceCaptureStage
 import space.pitchee.core.PitcheePhase
 import space.pitchee.core.PitcheeProgress
 import space.pitchee.core.PitcheeProgressStage
@@ -87,8 +88,8 @@ internal fun RecordingStage(
     val stopLabel = stringResource(R.string.stop_and_analyze)
     val statusText = when (state) {
         is RecordUiState.Recording -> stringResource(
-            R.string.recording_elapsed,
-            state.elapsedSeconds,
+            R.string.recording_speech_progress,
+            state.speechSeconds,
         )
         is RecordUiState.Analyzing -> {
             val progress = state.progress
@@ -106,6 +107,36 @@ internal fun RecordingStage(
             }
         }
         else -> stringResource(R.string.click_to_record)
+    }
+    val activeRecording = state as? RecordUiState.Recording
+    if (state !is RecordUiState.Analyzing) {
+        Box(modifier = modifier.fillMaxSize()) {
+            VoiceCaptureStage(
+                active = activeRecording != null,
+                elapsedSeconds = activeRecording?.elapsedSeconds ?: 0f,
+                speechSeconds = activeRecording?.speechSeconds ?: 0f,
+                requiredSpeechSeconds = RecordViewModel.MINIMUM_SPEECH_SECONDS.toFloat(),
+                amplitudes = activeRecording?.amplitudes.orEmpty(),
+                idleTitle = stringResource(R.string.click_to_record),
+                idleSubtitle = stringResource(R.string.analysis_recording_minimum),
+                recordingHint = stringResource(R.string.stop_and_analyze),
+                onAction = if (activeRecording != null) onStop else onStart,
+                modifier = Modifier.fillMaxSize(),
+            )
+            ScreenTitle(
+                title = stringResource(R.string.analysis_inference_title),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
+            )
+            ReadingPassageText(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 20.dp, vertical = 24.dp)
+                    .fillMaxWidth(),
+            )
+        }
+        return
     }
 
     val targetButtonSize = when (mode) {
@@ -142,7 +173,9 @@ internal fun RecordingStage(
     )
     val recordingProgress by animateFloatAsState(
         targetValue = recording?.let {
-            (it.elapsedSeconds / RecordViewModel.MAX_RECORDING_SECONDS).coerceIn(0f, 1f)
+            (
+                it.speechSeconds / RecordViewModel.MINIMUM_SPEECH_SECONDS.toFloat()
+                ).coerceIn(0f, 1f)
         } ?: 0f,
         animationSpec = tween(durationMillis = 180),
         label = "recording-progress",

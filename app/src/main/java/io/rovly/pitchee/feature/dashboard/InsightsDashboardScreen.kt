@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Icon
@@ -37,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -187,6 +189,13 @@ internal fun InsightsDashboardScreen(
         initialFirstVisibleItemIndex = scrollPosition.firstVisibleItemIndex,
         initialFirstVisibleItemScrollOffset = scrollPosition.firstVisibleItemScrollOffset,
     )
+    val activityListState = rememberLazyListState()
+    val historyListState = rememberLazyListState()
+    val today = remember { startOfDay(System.currentTimeMillis()) }
+    var activityDisplayedMonth by rememberSaveable {
+        mutableLongStateOf(startOfMonth(today))
+    }
+    var activitySelectedDay by rememberSaveable { mutableLongStateOf(today) }
     var scrollPositionRestored by remember {
         mutableStateOf(
             scrollPosition.firstVisibleItemIndex == 0 &&
@@ -266,6 +275,7 @@ internal fun InsightsDashboardScreen(
             InsightsRoute.History -> InsightsHistory(
                 data = data,
                 selectedRange = DashboardRange.ALL,
+                listState = historyListState,
                 onBack = { navigateTo(InsightsRoute.Overview) },
                 onOpen = { navigateTo(InsightsRoute.Detail(it, currentRoute)) },
                 onDelete = { entry ->
@@ -284,6 +294,11 @@ internal fun InsightsDashboardScreen(
 
             InsightsRoute.Activity -> InsightsActivity(
                 data = data,
+                listState = activityListState,
+                displayedMonth = activityDisplayedMonth,
+                selectedDay = activitySelectedDay,
+                onDisplayedMonthChange = { activityDisplayedMonth = it },
+                onSelectedDayChange = { activitySelectedDay = it },
                 onBack = { navigateTo(InsightsRoute.Overview) },
                 onOpenHistory = { navigateTo(InsightsRoute.History) },
                 onOpen = { navigateTo(InsightsRoute.Detail(it, InsightsRoute.Activity)) },
@@ -343,7 +358,7 @@ private fun InsightsOverview(
     data: InsightsData,
     selectedRange: DashboardRange,
     onRangeSelected: (DashboardRange) -> Unit,
-    listState: androidx.compose.foundation.lazy.LazyListState,
+    listState: LazyListState,
     onOpenHistory: () -> Unit,
     onOpenActivity: () -> Unit,
     onOpenMetric: (InsightsMetric) -> Unit,
@@ -994,6 +1009,11 @@ private fun MetricStat(
 @Composable
 private fun InsightsActivity(
     data: InsightsData,
+    listState: LazyListState,
+    displayedMonth: Long,
+    selectedDay: Long,
+    onDisplayedMonthChange: (Long) -> Unit,
+    onSelectedDayChange: (Long) -> Unit,
     onBack: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpen: (AnalysisHistoryEntry) -> Unit,
@@ -1008,8 +1028,6 @@ private fun InsightsActivity(
     val recordingDates = remember(visible) {
         visible.map { startOfDay(it.timestampMillis) }.toSet()
     }
-    var displayedMonth by remember { mutableStateOf(startOfMonth(now)) }
-    var selectedDay by remember { mutableStateOf(startOfDay(now)) }
     val selectedAssessments = remember(visible, selectedDay) {
         visible.filter { startOfDay(it.timestampMillis) == selectedDay }
             .sortedByDescending { it.timestampMillis }
@@ -1035,6 +1053,7 @@ private fun InsightsActivity(
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
+            state = listState,
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
         ) {
             item(key = "activity-title") {
@@ -1081,7 +1100,9 @@ private fun InsightsActivity(
                             )
                             Spacer(Modifier.weight(1f))
                             IconButton(
-                                onClick = { displayedMonth = addMonths(displayedMonth, -1) },
+                                onClick = {
+                                    onDisplayedMonthChange(addMonths(displayedMonth, -1))
+                                },
                                 enabled = displayedMonth > earliestMonth,
                             ) {
                                 Icon(
@@ -1091,7 +1112,9 @@ private fun InsightsActivity(
                                 )
                             }
                             IconButton(
-                                onClick = { displayedMonth = addMonths(displayedMonth, 1) },
+                                onClick = {
+                                    onDisplayedMonthChange(addMonths(displayedMonth, 1))
+                                },
                                 enabled = displayedMonth < currentMonth,
                             ) {
                                 Icon(
@@ -1117,7 +1140,7 @@ private fun InsightsActivity(
                                             opened = day in openedDates,
                                             recorded = day in recordingDates,
                                             enabled = day <= now,
-                                            onClick = { selectedDay = day },
+                                            onClick = { onSelectedDayChange(day) },
                                             modifier = Modifier.weight(1f),
                                         )
                                     }
@@ -1264,6 +1287,7 @@ private fun CalendarLegend(
 private fun InsightsHistory(
     data: InsightsData,
     selectedRange: DashboardRange,
+    listState: LazyListState,
     onBack: () -> Unit,
     onOpen: (AnalysisHistoryEntry) -> Unit,
     onDelete: (AnalysisHistoryEntry) -> Unit,
@@ -1290,6 +1314,7 @@ private fun InsightsHistory(
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
+            state = listState,
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
         ) {
             item(key = "history-back") {

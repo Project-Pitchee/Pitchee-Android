@@ -80,14 +80,18 @@ import io.rovly.pitchee.feature.analysis.ScoreResultContent
 import io.rovly.pitchee.feature.analysis.ScoreRulesContent
 import io.rovly.pitchee.feature.dashboard.DashboardScreen
 import io.rovly.pitchee.feature.dashboard.DashboardScrollPosition
+import io.rovly.pitchee.feature.knowledge.KNOWLEDGE_LIBRARY_ROUTE
+import io.rovly.pitchee.feature.knowledge.KnowledgeBaseScreen
+import io.rovly.pitchee.feature.knowledge.knowledgeArticleFromRoute
+import io.rovly.pitchee.feature.knowledge.routeToken
 import io.rovly.pitchee.feature.more.MoreScreen
 import io.rovly.pitchee.feature.onboarding.OnboardingScreen
 import io.rovly.pitchee.feature.pitch.RealtimePitchScreen
-import io.rovly.pitchee.feature.settings.SettingsScreen
 import io.rovly.pitchee.feature.settings.VoicePreferencePreferences
 import io.rovly.pitchee.ui.common.SwipeBackContainer
 import io.rovly.pitchee.ui.common.ScreenTitle
 import io.rovly.pitchee.ui.common.ScreenTransition
+import io.rovly.pitchee.ui.theme.PitcheeColorTokens
 import io.rovly.pitchee.update.ApkInstaller
 import io.rovly.pitchee.update.GitHubRelease
 import io.rovly.pitchee.update.UpdateUiState
@@ -106,7 +110,6 @@ private enum class PitcheeDestination(
     PITCH(R.string.nav_pitch, R.drawable.ic_pitch_analysis),
     ANALYSIS(R.string.nav_analysis, R.drawable.ic_model_analysis),
     MORE(R.string.nav_more, R.drawable.ic_more),
-    SETTINGS(R.string.nav_settings, R.drawable.ic_settings),
 }
 
 @Preview
@@ -127,6 +130,7 @@ fun PitcheeApp() {
         return
     }
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
+    var spectrumChromeActive by remember { mutableStateOf(false) }
     val updateViewModel: UpdateViewModel = viewModel(
         factory = remember { UpdateViewModel.factory(context.applicationContext) },
     )
@@ -160,6 +164,17 @@ fun PitcheeApp() {
         }
     }
     val destinations = remember { PitcheeDestination.entries }
+    val currentIndex = selectedIndex.coerceIn(destinations.indices)
+    val useSpectrumChrome = spectrumChromeActive &&
+        destinations[currentIndex] == PitcheeDestination.MORE
+    val scaffoldBackground = if (useSpectrumChrome) {
+        PitcheeColorTokens.SpectrumBackground
+    } else {
+        MaterialTheme.colorScheme.background
+    }
+    LaunchedEffect(currentIndex) {
+        if (selectedIndex != currentIndex) selectedIndex = currentIndex
+    }
     val dashboardScrollPosition = remember { DashboardScrollPosition() }
 
     LaunchedEffect(Unit) {
@@ -259,7 +274,7 @@ fun PitcheeApp() {
         ) {
             // The pitch chart paints its own background, so that tab runs under
             // the status bar. Everything else stays inset as before.
-            val fullBleedTop = destinations[selectedIndex] == PitcheeDestination.PITCH
+            val fullBleedTop = destinations[currentIndex] == PitcheeDestination.PITCH
             val contentPadding = if (fullBleedTop) {
                 PaddingValues(
                     start = innerPadding.calculateStartPadding(layoutDirection),
@@ -270,7 +285,7 @@ fun PitcheeApp() {
                 innerPadding
             }
             SwipeBackContainer(
-                enabled = destinations[selectedIndex] != PitcheeDestination.DASHBOARD,
+                enabled = destinations[currentIndex] != PitcheeDestination.DASHBOARD,
                 onBack = { selectedIndex = 0 },
                 modifier = Modifier
                     .fillMaxHeight()
@@ -278,20 +293,20 @@ fun PitcheeApp() {
                     .fillMaxWidth()
                     .padding(contentPadding),
             ) {
-                when (destinations[selectedIndex]) {
+                when (destinations[currentIndex]) {
                     PitcheeDestination.DASHBOARD -> DashboardScreen(
-                        refreshKey = selectedIndex,
+                        refreshKey = currentIndex,
                         scrollPosition = dashboardScrollPosition,
                     )
                     PitcheeDestination.PITCH -> RealtimePitchScreen()
-                    PitcheeDestination.MORE -> MoreScreen()
-                    PitcheeDestination.ANALYSIS -> RecordAnalysisScreen()
-                    PitcheeDestination.SETTINGS -> SettingsScreen(
+                    PitcheeDestination.MORE -> MoreScreen(
                         updateState = updateState,
                         autoCheckUpdates = autoCheckUpdates,
                         onAutoCheckChange = updateViewModel::setAutoCheck,
                         onCheckUpdates = { updateViewModel.checkForUpdates(manual = true) },
+                        onSpectrumChromeChange = { spectrumChromeActive = it },
                     )
+                    PitcheeDestination.ANALYSIS -> RecordAnalysisScreen()
                 }
             }
         }
@@ -302,19 +317,33 @@ fun PitcheeApp() {
         if (useNavigationRail) {
             Row(modifier = Modifier.fillMaxSize()) {
                 NavigationRail(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    containerColor = if (useSpectrumChrome) {
+                        PitcheeColorTokens.SpectrumBackground
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainer
+                    },
                 ) {
                     destinations.forEachIndexed { index, destination ->
                         NavigationRailItem(
-                            selected = selectedIndex == index,
+                            selected = currentIndex == index,
                             onClick = { selectedIndex = index },
-                            colors = NavigationRailItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            ),
+                            colors = if (useSpectrumChrome) {
+                                NavigationRailItemDefaults.colors(
+                                    selectedIconColor = PitcheeColorTokens.PlayerAccentDark,
+                                    selectedTextColor = PitcheeColorTokens.PlayerContentDark,
+                                    indicatorColor = PitcheeColorTokens.PlayerSurfaceDark,
+                                    unselectedIconColor = PitcheeColorTokens.SpectrumAxis,
+                                    unselectedTextColor = PitcheeColorTokens.SpectrumAxis,
+                                )
+                            } else {
+                                NavigationRailItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
                             icon = {
                                 Icon(
                                     painter = painterResource(destination.iconRes),
@@ -325,26 +354,43 @@ fun PitcheeApp() {
                         )
                     }
                 }
-                Scaffold { innerPadding -> screenContent(innerPadding) }
+                Scaffold(
+                    containerColor = scaffoldBackground,
+                ) { innerPadding -> screenContent(innerPadding) }
             }
         } else {
             Scaffold(
+                containerColor = scaffoldBackground,
                 bottomBar = {
                     NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        containerColor = if (useSpectrumChrome) {
+                            PitcheeColorTokens.SpectrumBackground
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainer
+                        },
                         tonalElevation = 0.dp,
                     ) {
                         destinations.forEachIndexed { index, destination ->
                             NavigationBarItem(
-                                selected = selectedIndex == index,
+                                selected = currentIndex == index,
                                 onClick = { selectedIndex = index },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                ),
+                                colors = if (useSpectrumChrome) {
+                                    NavigationBarItemDefaults.colors(
+                                        selectedIconColor = PitcheeColorTokens.PlayerAccentDark,
+                                        selectedTextColor = PitcheeColorTokens.PlayerContentDark,
+                                        indicatorColor = PitcheeColorTokens.PlayerSurfaceDark,
+                                        unselectedIconColor = PitcheeColorTokens.SpectrumAxis,
+                                        unselectedTextColor = PitcheeColorTokens.SpectrumAxis,
+                                    )
+                                } else {
+                                    NavigationBarItemDefaults.colors(
+                                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
                                 icon = {
                                     Icon(
                                         painter = painterResource(destination.iconRes),
@@ -376,12 +422,21 @@ private fun RecordAnalysisScreen() {
     // Same idea as the dashboard: keep a strictly ordered zIndex so a pop right
     // after a pop cannot tie with the outgoing page.
     var rulesZStep by remember { mutableFloatStateOf(1f) }
+    var knowledgeRoute by rememberSaveable { mutableStateOf<String?>(null) }
+    var knowledgeZStep by remember { mutableFloatStateOf(1f) }
 
     fun setRulesVisible(visible: Boolean) {
         if (visible == showingRules) return
         val magnitude = abs(rulesZStep) + 1f
         rulesZStep = if (visible) magnitude else -magnitude
         showingRules = visible
+    }
+
+    fun setKnowledgeRoute(route: String?) {
+        if (route == knowledgeRoute) return
+        val magnitude = abs(knowledgeZStep) + 1f
+        knowledgeZStep = if (route != null) magnitude else -magnitude
+        knowledgeRoute = route
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -398,6 +453,7 @@ private fun RecordAnalysisScreen() {
 
     fun startRecording() {
         setRulesVisible(false)
+        setKnowledgeRoute(null)
         val granted = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.RECORD_AUDIO,
@@ -406,7 +462,9 @@ private fun RecordAnalysisScreen() {
         else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
     }
 
-    val errorMessage = (state as? RecordUiState.Error)?.message
+    val stateError = state as? RecordUiState.Error
+    val errorMessage = stateError?.messageRes?.let { stringResource(it) }
+        ?: stateError?.message
     LaunchedEffect(errorMessage) {
         if (errorMessage != null) snackbarHostState.showSnackbar(errorMessage)
     }
@@ -439,10 +497,31 @@ private fun RecordAnalysisScreen() {
                                 onBack = { setRulesVisible(false) },
                             )
                         } else {
-                            Surface(
-                                modifier = Modifier.fillMaxSize(),
-                                color = MaterialTheme.colorScheme.background,
-                            ) {
+                            ScreenTransition(
+                                targetState = knowledgeRoute,
+                                forward = knowledgeRoute != null,
+                                contentZIndex = if (knowledgeRoute != null) {
+                                    abs(knowledgeZStep)
+                                } else {
+                                    -abs(knowledgeZStep)
+                                },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.background),
+                                label = "knowledge-page",
+                            ) { knowledgeTarget ->
+                                if (knowledgeTarget != null) {
+                                    KnowledgeBaseScreen(
+                                        initialArticleKey = knowledgeArticleFromRoute(
+                                            knowledgeTarget,
+                                        ),
+                                        onBack = { setKnowledgeRoute(null) },
+                                    )
+                                } else {
+                                    Surface(
+                                        modifier = Modifier.fillMaxSize(),
+                                        color = MaterialTheme.colorScheme.background,
+                                    ) {
                                 val animateScore = remember(current.scoreAnimationToken) {
                                     viewModel.consumeScoreAnimation(current.scoreAnimationToken)
                                 }
@@ -476,6 +555,12 @@ private fun RecordAnalysisScreen() {
                                         previousMetrics = current.previousMetrics,
                                         animateScore = animateScore,
                                         onOpenRules = { setRulesVisible(true) },
+                                        onOpenKnowledgeArticle = { key ->
+                                            setKnowledgeRoute(key.routeToken())
+                                        },
+                                        onOpenKnowledgeBase = {
+                                            setKnowledgeRoute(KNOWLEDGE_LIBRARY_ROUTE)
+                                        },
                                     ) {
                                         RecordedAudioTimeline(
                                             audio = current.audio,
@@ -498,15 +583,19 @@ private fun RecordAnalysisScreen() {
                                         Text(stringResource(R.string.recording_again))
                                     }
                                 }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
             is RecordUiState.Error -> {
+                val message = current.messageRes?.let { stringResource(it) }
+                    ?: current.message.orEmpty()
                 if (current.audio == null) {
                     ScreenColumn {
-                        ErrorCard(current.message)
+                        ErrorCard(message)
                         Spacer(Modifier.height(12.dp))
                         TextButton(
                             onClick = {
@@ -527,7 +616,7 @@ private fun RecordAnalysisScreen() {
                             audio = current.audio,
                         )
                         Spacer(Modifier.height(20.dp))
-                        ErrorCard(current.message)
+                        ErrorCard(message)
                         Spacer(Modifier.height(12.dp))
                         TextButton(
                             onClick = {
@@ -586,7 +675,6 @@ private fun ScoreRulesPage(
             ScreenColumn {
             ScreenTitle(
                 title = stringResource(R.string.score_rules_title),
-                subtitle = stringResource(R.string.score_rules_subtitle),
                 onBack = onBack,
             )
             Spacer(Modifier.height(20.dp))

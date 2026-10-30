@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -70,7 +71,7 @@ internal fun <T> SegmentedChoiceRow(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 48.dp)
+                        .height(48.dp)
                         .clip(MaterialTheme.shapes.medium)
                         .background(containerColor)
                         .selectable(
@@ -89,7 +90,9 @@ internal fun <T> SegmentedChoiceRow(
                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                         color = contentColor,
                         textAlign = TextAlign.Center,
-                        maxLines = 2,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }

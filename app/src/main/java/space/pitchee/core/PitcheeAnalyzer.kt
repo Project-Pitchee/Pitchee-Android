@@ -189,7 +189,7 @@ data class PitcheeThresholds(
             (Runtime.getRuntime().availableProcessors() * 3 / 4).coerceAtLeast(1)
 
         const val DEFAULT_MIN_F0_HZ = 75f
-        const val DEFAULT_MAX_F0_HZ = 450f
+        const val DEFAULT_MAX_F0_HZ = 350f
         const val DEFAULT_MIN_CONFIDENCE = 0.9f
     }
 }

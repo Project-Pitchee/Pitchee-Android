@@ -74,6 +74,7 @@ import io.noties.markwon.ext.latex.JLatexMathPlugin
 import io.noties.markwon.ext.latex.JLatexMathTheme
 import io.rovly.pitchee.R
 import io.rovly.pitchee.data.model.PitcheeResult
+import io.rovly.pitchee.feature.knowledge.KnowledgeArticleKey
 import io.rovly.pitchee.ui.common.resolve
 import io.rovly.pitchee.ui.common.LocalizedText
 import io.rovly.pitchee.ui.common.ScoreMetric
@@ -123,6 +124,8 @@ internal fun ScoreResultContent(
     previousMetrics: PreviousMetrics? = null,
     animateScore: Boolean = true,
     onOpenRules: () -> Unit = {},
+    onOpenKnowledgeArticle: (KnowledgeArticleKey) -> Unit = {},
+    onOpenKnowledgeBase: () -> Unit = {},
     audioPlayer: (@Composable () -> Unit)? = null,
 ) {
     val languageCode = LocalConfiguration.current.locales[0].language
@@ -156,6 +159,12 @@ internal fun ScoreResultContent(
         previousMetrics = previousMetrics,
         animate = animateScore,
         languageCode = languageCode,
+    )
+    Spacer(Modifier.height(12.dp))
+    ScoreSuggestionsSection(
+        result = result,
+        onOpenArticle = onOpenKnowledgeArticle,
+        onOpenKnowledgeBase = onOpenKnowledgeBase,
     )
 }
 
@@ -280,7 +289,7 @@ private fun PassCard(onOpenRules: () -> Unit) {
 
 @Composable
 private fun InsightCard(
-    label: String,
+    label: String?,
     title: String,
     description: String,
     containerColor: Color,
@@ -295,12 +304,14 @@ private fun InsightCard(
         colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
         Column(Modifier.padding(20.dp)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = contentColor.copy(alpha = 0.72f),
-            )
-            Spacer(Modifier.height(4.dp))
+            if (!label.isNullOrBlank()) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = contentColor.copy(alpha = 0.72f),
+                )
+                Spacer(Modifier.height(4.dp))
+            }
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleLarge,
@@ -514,19 +525,18 @@ internal fun ScoreRulesContent(
                     style = MaterialTheme.typography.displayLarge,
                     fontWeight = FontWeight.Black,
                 )
+                Text(
+                    text = stringResource(R.string.score_pass_threshold_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             ScoreDelta(
                 previousScore = previousScore,
                 currentScore = result.composite.finalScore,
             )
         }
-        Spacer(Modifier.height(18.dp))
-        Text(
-            text = stringResource(R.string.score_current_metrics),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(16.dp))
         scoreIndicators(result, previousMetrics).forEach { indicator ->
             IndicatorRow(indicator)
             Spacer(Modifier.height(12.dp))
@@ -786,16 +796,16 @@ private fun scoreIndicators(
         "continuous" -> f0 == null || f0 <= 165.0
         else -> false
     }
-    val standardTier = scoreTier(standard, !standardLimited)
-    val naturalnessTier = scoreTier(naturalness, !naturalnessLimited)
-    val f0Score = f0?.let { ((it - 110.0) / 90.0 * 100.0).coerceIn(0.0, 100.0) } ?: 0.0
-    val f0Tier = scoreTier(f0Score, !f0Limited)
+    val f0Score = f0?.let { f0ProgressScore(it) } ?: 0.0
+    val standardPassed = metricPassed(standard, standardLimited)
+    val naturalnessPassed = metricPassed(naturalness, naturalnessLimited)
+    val f0Passed = metricPassed(f0Score, f0Limited)
     return listOf(
         ScoreIndicator(
             label = LocalizedText(R.string.score_label_timbre),
             value = LocalizedText(R.string.score_value_score, listOf(standard)),
-            passed = !standardLimited,
-            tier = standardTier,
+            passed = standardPassed,
+            tier = scoreTier(standard, standardPassed),
             comparison = previousMetrics?.let {
                 ScoreComparison(standard, it.standardScore)
             },
@@ -803,8 +813,8 @@ private fun scoreIndicators(
         ScoreIndicator(
             label = LocalizedText(R.string.score_label_naturalness),
             value = LocalizedText(R.string.score_value_score, listOf(naturalness)),
-            passed = !naturalnessLimited,
-            tier = naturalnessTier,
+            passed = naturalnessPassed,
+            tier = scoreTier(naturalness, naturalnessPassed),
             comparison = previousMetrics?.let {
                 ScoreComparison(naturalness, it.naturalnessScore)
             },
@@ -814,8 +824,8 @@ private fun scoreIndicators(
             value = f0?.let {
                 LocalizedText(R.string.score_value_hz, listOf(it))
             } ?: LocalizedText(R.string.score_value_not_detected),
-            passed = !f0Limited,
-            tier = f0Tier,
+            passed = f0Passed,
+            tier = scoreTier(f0Score, f0Passed),
             comparison = if (f0 != null && previousMetrics?.meanF0Hz != null) {
                 ScoreComparison(f0, previousMetrics.meanF0Hz, " Hz")
             } else {
@@ -835,14 +845,17 @@ private fun masculineScoreIndicators(
     val standardLimited = standard < 50.0
     val f0Limited = f0 == null || f0 >= 165.0
     val f0Score = f0?.let {
-        ((200.0 - it) / 90.0 * 100.0).coerceIn(0.0, 100.0)
+        f0ProgressScore(it, PitcheeScoreProfile.MASCULINIZATION)
     } ?: 0.0
+    val standardPassed = metricPassed(standard, standardLimited)
+    val naturalnessPassed = naturalness >= 50.0
+    val f0Passed = metricPassed(f0Score, f0Limited)
     return listOf(
         ScoreIndicator(
             label = LocalizedText(R.string.score_label_timbre),
             value = LocalizedText(R.string.score_value_score, listOf(standard)),
-            passed = !standardLimited,
-            tier = scoreTier(standard, !standardLimited),
+            passed = standardPassed,
+            tier = scoreTier(standard, standardPassed),
             comparison = previousMetrics?.let {
                 ScoreComparison(standard, (100.0 - it.standardScore).coerceIn(0.0, 100.0))
             },
@@ -850,8 +863,8 @@ private fun masculineScoreIndicators(
         ScoreIndicator(
             label = LocalizedText(R.string.score_label_naturalness),
             value = LocalizedText(R.string.score_value_score, listOf(naturalness)),
-            passed = true,
-            tier = scoreTier(naturalness, passed = true),
+            passed = naturalnessPassed,
+            tier = scoreTier(naturalness, naturalnessPassed),
             comparison = previousMetrics?.let {
                 ScoreComparison(naturalness, it.naturalnessScore)
             },
@@ -861,8 +874,8 @@ private fun masculineScoreIndicators(
             value = f0?.let {
                 LocalizedText(R.string.score_value_hz, listOf(it))
             } ?: LocalizedText(R.string.score_value_not_detected),
-            passed = !f0Limited,
-            tier = scoreTier(f0Score, !f0Limited),
+            passed = f0Passed,
+            tier = scoreTier(f0Score, f0Passed),
             comparison = if (f0 != null && previousMetrics?.meanF0Hz != null) {
                 ScoreComparison(f0, previousMetrics.meanF0Hz, " Hz")
             } else {
@@ -872,10 +885,14 @@ private fun masculineScoreIndicators(
     ).sortedBy { it.passed }
 }
 
-private fun scoreTier(
+internal fun metricPassed(score: Double, limited: Boolean): Boolean =
+    !limited && score >= 50.0
+
+internal fun scoreTier(
     score: Double,
     passed: Boolean,
 ): LocalizedText {
+    if (score < 50.0) return LocalizedText(R.string.score_tier_fail)
     if (!passed) return LocalizedText(R.string.score_tier_limiter)
     return when (score.coerceAtLeast(50.0)) {
         in 50.0..<60.0 -> LocalizedText(R.string.score_tier_fair)
@@ -1154,7 +1171,7 @@ private fun BottleneckCard(
     }
 
     InsightCard(
-        label = stringResource(R.string.score_main_bottleneck),
+        label = null,
         title = insight.bottleneckTitle?.resolve().orEmpty(),
         description = insight.bottleneckDescription?.resolve().orEmpty(),
         containerColor = containerColor,
@@ -1173,9 +1190,9 @@ private fun MetricsCard(
     animate: Boolean,
     languageCode: String,
 ) {
-    val cardColor = MaterialTheme.colorScheme.tertiaryContainer
-    val toggleColor = MaterialTheme.colorScheme.tertiary
-    val toggleContentColor = MaterialTheme.colorScheme.onTertiary
+    val cardColor = MaterialTheme.colorScheme.surfaceContainerLow
+    val toggleColor = MaterialTheme.colorScheme.primaryContainer
+    val toggleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
     val masculineProfile = result.scoreProfile == PitcheeScoreProfile.MASCULINIZATION
     val currentStandard = if (masculineProfile) {
         100.0 - result.vfp.standardScore
@@ -1268,14 +1285,14 @@ private fun MetricsCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                        .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         text = stringResource(R.string.score_metrics_toggle),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
                     )
                     Button(
                         onClick = {},
@@ -1356,14 +1373,31 @@ private fun MetricsCard(
     }
 }
 
-private fun f0ProgressScore(
+internal fun f0ProgressScore(
     f0Hz: Double,
     scoreProfile: PitcheeScoreProfile = PitcheeScoreProfile.FEMINIZATION,
 ): Double = if (scoreProfile == PitcheeScoreProfile.MASCULINIZATION) {
-    min(100.0, max(0.0, (200.0 - f0Hz) / 90.0 * 100.0))
+    min(
+        100.0,
+        max(
+            0.0,
+            (MEAN_F0_DISPLAY_MAX_HZ - f0Hz) /
+                (MEAN_F0_DISPLAY_MAX_HZ - MEAN_F0_DISPLAY_MIN_HZ) * 100.0,
+        ),
+    )
 } else {
-    min(100.0, max(0.0, (f0Hz - 110.0) / 90.0 * 100.0))
+    min(
+        100.0,
+        max(
+            0.0,
+            (f0Hz - MEAN_F0_DISPLAY_MIN_HZ) / FEMININE_F0_SCORE_DIVISOR * 100.0,
+        ),
+    )
 }
+
+private const val MEAN_F0_DISPLAY_MIN_HZ = 100.0
+private const val MEAN_F0_DISPLAY_MAX_HZ = 250.0
+private const val FEMININE_F0_SCORE_DIVISOR = 120.0
 
 @Composable
 private fun MetricRow(

@@ -16,60 +16,12 @@ internal data class ReadingPassage(
         customText ?: context.resources.getStringArray(requireNotNull(textRes))[index]
 }
 
-internal val readingPassages = listOf(
+internal val readingPassages = List(OFFICIAL_PASSAGE_COUNT) { index ->
     ReadingPassage(
         titleRes = R.array.reading_passage_titles,
         textRes = R.array.reading_passage_texts,
-        index = 0,
-    ),
-    ReadingPassage(
-        titleRes = R.array.reading_passage_titles,
-        textRes = R.array.reading_passage_texts,
-        index = 1,
-    ),
-    ReadingPassage(
-        titleRes = R.array.reading_passage_titles,
-        textRes = R.array.reading_passage_texts,
-        index = 2,
-    ),
-    ReadingPassage(
-        titleRes = R.array.reading_passage_titles,
-        textRes = R.array.reading_passage_texts,
-        index = 3,
-    ),
-    ReadingPassage(
-        titleRes = R.array.reading_passage_titles,
-        textRes = R.array.reading_passage_texts,
-        index = 4,
-    ),
-    ReadingPassage(
-        titleRes = R.array.reading_passage_titles,
-        textRes = R.array.reading_passage_texts,
-        index = 5,
-    ),
-    ReadingPassage(
-        titleRes = R.array.reading_passage_titles,
-        textRes = R.array.reading_passage_texts,
-        index = 6,
-    ),
-    ReadingPassage(
-        titleRes = R.array.reading_passage_titles,
-        textRes = R.array.reading_passage_texts,
-        index = 7,
-    ),
-    ReadingPassage(
-        titleRes = R.array.reading_passage_titles,
-        textRes = R.array.reading_passage_texts,
-        index = 8,
-    ),
-    ReadingPassage(
-        titleRes = R.array.reading_passage_titles,
-        textRes = R.array.reading_passage_texts,
-        index = 9,
-    ),
-    ReadingPassage(
-        titleRes = R.array.reading_passage_titles,
-        textRes = R.array.reading_passage_texts,
-        index = 10,
-    ),
-)
+        index = index,
+    )
+}
+
+private const val OFFICIAL_PASSAGE_COUNT = 6

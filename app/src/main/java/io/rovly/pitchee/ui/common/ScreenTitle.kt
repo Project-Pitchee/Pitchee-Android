@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.PlatformTextStyle
@@ -82,6 +83,10 @@ internal fun ScreenTitle(
     modifier: Modifier = Modifier,
     titleStyle: TextStyle = MaterialTheme.typography.headlineMedium,
     subtitleStyle: TextStyle = MaterialTheme.typography.bodyLarge,
+    titleColor: Color = MaterialTheme.colorScheme.onSurface,
+    subtitleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    backContainerColor: Color = MaterialTheme.colorScheme.primaryContainer,
+    backContentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer,
 ) {
     val subtitleStart = if (onBack != null) 60.dp else 0.dp
     val titleOffset = if (title.any { Character.UnicodeScript.of(it.code) == Character.UnicodeScript.HAN }) {
@@ -96,6 +101,8 @@ internal fun ScreenTitle(
                     iconRes = R.drawable.ic_arrow_back,
                     contentDescription = stringResource(R.string.action_back),
                     onClick = onBack,
+                    containerColor = backContainerColor,
+                    contentColor = backContentColor,
                 )
                 Spacer(Modifier.width(12.dp))
             }
@@ -106,6 +113,7 @@ internal fun ScreenTitle(
                     .offset(y = titleOffset),
                 style = titleStyle,
                 fontWeight = FontWeight.Bold,
+                color = titleColor,
             )
             if (trailingContent != null) {
                 Spacer(Modifier.width(12.dp))
@@ -117,7 +125,7 @@ internal fun ScreenTitle(
                 text = subtitle,
                 modifier = Modifier.padding(start = subtitleStart, top = 2.dp),
                 style = subtitleStyle,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = subtitleColor,
             )
         }
     }

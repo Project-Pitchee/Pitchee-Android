@@ -36,9 +36,28 @@ internal data class ScoreInsight(
                 ruleState = ruleState,
                 hasBottleneck = bottleneck != null,
                 bottleneckTitle = bottleneck?.title,
-                bottleneckDescription = bottleneck?.description,
+                bottleneckDescription = bottleneck?.let { ruleGuidance(result) },
                 bottleneckMetric = bottleneck?.metric,
             )
+        }
+
+        private fun ruleGuidance(result: PitcheeResult): LocalizedText {
+            if (result.scoreProfile == PitcheeScoreProfile.MASCULINIZATION) {
+                return LocalizedText(R.string.rule_doc_masculine_continuous_guidance)
+            }
+            return when (result.composite.rule) {
+                "f0_unavailable" -> LocalizedText(R.string.rule_doc_f0_unavailable_guidance)
+                "pass_boost" -> LocalizedText(R.string.rule_doc_boost_guidance)
+                "high_f0_stylized_cap" -> LocalizedText(
+                    R.string.rule_doc_high_f0_stylized_guidance,
+                )
+                "low_f0_natural_cap" -> LocalizedText(R.string.rule_doc_low_f0_natural_guidance)
+                "low_f0_stylized_cap" -> LocalizedText(
+                    R.string.rule_doc_low_f0_stylized_guidance,
+                )
+                "high_f0_male_cap" -> LocalizedText(R.string.rule_doc_high_f0_male_guidance)
+                else -> LocalizedText(R.string.rule_doc_continuous_guidance)
+            }
         }
 
         private fun ruleSummary(result: PitcheeResult): RuleSummary {
@@ -185,7 +204,7 @@ internal data class ScoreInsight(
             val naturalness = result.naturalness.score
             val f0 = result.f0.meanHz
             val f0Score = f0?.let {
-                min(100.0, max(0.0, (it - 110.0) / 90.0 * 100.0))
+                min(100.0, max(0.0, (it - 100.0) / 120.0 * 100.0))
             }
             val issues = buildList {
                 if (f0Score == null) {

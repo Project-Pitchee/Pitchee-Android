@@ -5,7 +5,13 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,11 +20,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
@@ -35,7 +41,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -45,6 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.rovly.pitchee.R
 import io.rovly.pitchee.ui.common.ScreenTitle
+import io.rovly.pitchee.ui.common.VoiceCaptureStage
 import io.rovly.pitchee.ui.theme.PitcheeColorTokens
 import io.rovly.pitchee.ui.theme.metricHero
 import space.pitchee.core.PitcheeVoiceHealthProgress
@@ -92,132 +103,243 @@ internal fun VoiceHealthScreen(onBack: () -> Unit) {
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-        ) {
-            ScreenTitle(
-                title = stringResource(R.string.voice_health_title),
-                subtitle = stringResource(R.string.voice_health_subtitle),
-                onBack = onBack,
-            )
-            Spacer(Modifier.height(22.dp))
+        val current = state
+        val captureVisible = current is VoiceHealthUiState.Ready ||
+            current is VoiceHealthUiState.Recording
+        if (captureVisible) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                val recording = current as? VoiceHealthUiState.Recording
+                VoiceCaptureStage(
+                    active = recording != null,
+                    elapsedSeconds = recording?.elapsedSeconds ?: 0f,
+                    speechSeconds = recording?.validSpeechSeconds ?: 0f,
+                    requiredSpeechSeconds = VoiceHealthViewModel.MINIMUM_SPEECH_SECONDS,
+                    amplitudes = recording?.amplitudes.orEmpty(),
+                    idleTitle = stringResource(R.string.click_to_record),
+                    idleSubtitle = stringResource(R.string.voice_health_minimum_duration),
+                    recordingHint = stringResource(R.string.voice_health_stop),
+                    onAction = {
+                        if (current is VoiceHealthUiState.Recording) {
+                            viewModel.stopAndAnalyze()
+                        } else {
+                            startRecording()
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    footerMessage = if (permissionDenied) permissionDeniedMessage else null,
+                )
+                ScreenTitle(
+                    title = stringResource(R.string.voice_health_title),
+                    onBack = onBack,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(horizontal = 20.dp, vertical = 24.dp),
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
+            ) {
+                ScreenTitle(
+                    title = stringResource(R.string.voice_health_title),
+                    onBack = onBack,
+                )
+                Spacer(Modifier.height(22.dp))
 
-            when (val current = state) {
-                VoiceHealthUiState.Ready -> VoiceHealthReady(
-                    permissionDenied = permissionDenied,
-                    permissionDeniedMessage = permissionDeniedMessage,
-                    onStart = ::startRecording,
-                )
-                is VoiceHealthUiState.Recording -> VoiceHealthRecording(
-                    elapsedSeconds = current.elapsedSeconds,
-                    validSpeechSeconds = current.validSpeechSeconds,
-                    onStop = viewModel::stopAndAnalyze,
-                )
-                is VoiceHealthUiState.Analyzing -> VoiceHealthAnalyzing(current.progress)
-                is VoiceHealthUiState.Success -> VoiceHealthSuccess(
-                    result = current.result,
-                    onAgain = viewModel::reset,
-                )
-                is VoiceHealthUiState.Error -> VoiceHealthError(
-                    message = current.message,
-                    onRetry = viewModel::reset,
-                )
+                when (current) {
+                    is VoiceHealthUiState.Analyzing -> VoiceHealthAnalyzing(current.progress)
+                    is VoiceHealthUiState.Success -> VoiceHealthSuccess(
+                        result = current.result,
+                        onAgain = viewModel::reset,
+                    )
+                    is VoiceHealthUiState.Error -> VoiceHealthError(
+                        message = current.messageRes?.let { stringResource(it) }
+                            ?: current.message.orEmpty(),
+                        onRetry = viewModel::reset,
+                    )
+                    VoiceHealthUiState.Ready,
+                    is VoiceHealthUiState.Recording,
+                    -> Unit
+                }
             }
         }
     }
 }
 
 @Composable
-private fun VoiceHealthReady(
+private fun VoiceHealthCaptureStage(
+    recording: VoiceHealthUiState.Recording?,
     permissionDenied: Boolean,
-    permissionDeniedMessage: String,
-    onStart: () -> Unit,
+    permissionDeniedMessage: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        VoiceHealthRecordButton(
-            color = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            recording = false,
-            onClick = onStart,
-        )
-        Spacer(Modifier.height(18.dp))
-        Text(
-            text = stringResource(R.string.click_to_record),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = stringResource(R.string.voice_health_minimum_duration),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (permissionDenied) {
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = permissionDeniedMessage,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-    }
-}
+    val active = recording != null
+    val speechProgress by animateFloatAsState(
+        targetValue = recording?.let {
+            (it.validSpeechSeconds / VoiceHealthViewModel.MINIMUM_SPEECH_SECONDS)
+                .coerceIn(0f, 1f)
+        } ?: 0f,
+        animationSpec = tween(durationMillis = 260),
+        label = "voice-health-speech-progress",
+    )
+    val pulseTransition = rememberInfiniteTransition(label = "voice-health-pulse")
+    val pulse by pulseTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "voice-health-pulse-scale",
+    )
+    val primary = MaterialTheme.colorScheme.primary
+    val error = MaterialTheme.colorScheme.error
+    val buttonColor = if (active) error else primary
+    val buttonContent = if (active) MaterialTheme.colorScheme.onError
+    else MaterialTheme.colorScheme.onPrimary
 
-@Composable
-private fun VoiceHealthRecording(
-    elapsedSeconds: Float,
-    validSpeechSeconds: Float,
-    onStop: () -> Unit,
-) {
-    val speechProgress = (validSpeechSeconds / VoiceHealthViewModel.MINIMUM_SPEECH_SECONDS)
-        .coerceIn(0f, 1f)
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Box(
+        modifier = modifier.fillMaxSize(),
     ) {
-        VoiceHealthRecordButton(
-            color = MaterialTheme.colorScheme.error,
-            contentColor = MaterialTheme.colorScheme.onError,
-            recording = true,
-            onClick = onStop,
+        VoiceHealthWaveform(
+            amplitudes = recording?.amplitudes.orEmpty(),
+            color = error,
+            active = active,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .height(220.dp),
         )
-        Spacer(Modifier.height(18.dp))
-        Text(
-            text = stringResource(R.string.recording_elapsed, elapsedSeconds),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.height(6.dp))
-        LinearProgressIndicator(
-            progress = { speechProgress },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.voice_health_valid_speech, validSpeechSeconds),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (speechProgress < 1f) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.voice_health_need_more_speech),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(204.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (active) {
+                Canvas(
+                    modifier = Modifier
+                        .size(184.dp)
+                        .graphicsLayer {
+                            scaleX = pulse
+                            scaleY = pulse
+                        },
+                ) {
+                    drawCircle(
+                        color = error.copy(alpha = 0.09f),
+                        radius = size.minDimension / 2f,
+                    )
+                }
+            }
+            Canvas(Modifier.size(172.dp)) {
+                val stroke = 5.dp.toPx()
+                drawArc(
+                    color = primary.copy(alpha = 0.16f),
+                    startAngle = -90f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    style = Stroke(width = stroke, cap = StrokeCap.Round),
+                )
+                if (active) {
+                    drawArc(
+                        color = primary,
+                        startAngle = -90f,
+                        sweepAngle = speechProgress * 360f,
+                        useCenter = false,
+                        style = Stroke(width = stroke, cap = StrokeCap.Round),
+                    )
+                }
+            }
+            Surface(
+                onClick = onClick,
+                modifier = Modifier.size(118.dp),
+                shape = CircleShape,
+                color = buttonColor,
+                contentColor = buttonContent,
+                shadowElevation = if (active) 12.dp else 5.dp,
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (active) {
+                        Canvas(Modifier.size(32.dp)) {
+                            drawRoundRect(
+                                color = Color.White,
+                                cornerRadius = CornerRadius(5.dp.toPx()),
+                            )
+                        }
+                    } else {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_voice_health),
+                            contentDescription = stringResource(R.string.start_recording),
+                            modifier = Modifier.size(44.dp),
+                        )
+                    }
+                }
+            }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.voice_health_stop),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(y = 170.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            if (recording != null) {
+                Text(
+                    text = formatClock(recording.elapsedSeconds),
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Black,
+                )
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    text = stringResource(
+                        R.string.voice_health_valid_speech,
+                        recording.validSpeechSeconds,
+                    ),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (speechProgress >= 1f) {
+                        PitcheeColorTokens.Success
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    fontWeight = if (speechProgress >= 1f) FontWeight.Bold else FontWeight.Medium,
+                )
+                Spacer(Modifier.height(7.dp))
+                Text(
+                    text = stringResource(R.string.voice_health_stop),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.click_to_record),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(7.dp))
+                Text(
+                    text = stringResource(R.string.voice_health_minimum_duration),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (permissionDenied) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = permissionDeniedMessage.orEmpty(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
     }
 }
 
@@ -353,36 +475,38 @@ private fun VoiceHealthError(
 }
 
 @Composable
-private fun VoiceHealthRecordButton(
+private fun VoiceHealthWaveform(
+    amplitudes: List<Float>,
     color: Color,
-    contentColor: Color,
-    recording: Boolean,
-    onClick: () -> Unit,
+    active: Boolean,
+    modifier: Modifier = Modifier,
 ) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.size(164.dp),
-        shape = CircleShape,
-        color = color,
-        contentColor = contentColor,
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (recording) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(Color.White, RoundedCornerShape(6.dp)),
-                )
+    val alpha by animateFloatAsState(
+        targetValue = if (active) 1f else 0f,
+        animationSpec = tween(durationMillis = 220),
+        label = "voice-health-waveform-alpha",
+    )
+    Canvas(modifier = modifier.graphicsLayer { this.alpha = alpha }) {
+        if (!active) return@Canvas
+        val values = amplitudes.takeLast(MAX_WAVEFORM_BARS)
+        val step = size.width / MAX_WAVEFORM_BARS
+        val maxHeight = size.height * 0.46f
+        for (index in 0 until MAX_WAVEFORM_BARS) {
+            val amplitude = if (values.isEmpty()) {
+                0f
             } else {
-                Icon(
-                    painter = painterResource(R.drawable.ic_play),
-                    contentDescription = null,
-                    modifier = Modifier.size(52.dp),
-                )
+                values[(index * values.size / MAX_WAVEFORM_BARS).coerceAtMost(values.lastIndex)]
+                    .coerceIn(0f, 1f)
             }
+            val halfHeight = 2.dp.toPx() + maxHeight * amplitude
+            val x = step * (index + 0.5f)
+            drawLine(
+                color = color.copy(alpha = 0.30f + amplitude * 0.45f),
+                start = androidx.compose.ui.geometry.Offset(x, center.y - halfHeight),
+                end = androidx.compose.ui.geometry.Offset(x, center.y + halfHeight),
+                strokeWidth = (step * 0.34f).coerceIn(1.5.dp.toPx(), 4.dp.toPx()),
+                cap = StrokeCap.Round,
+            )
         }
     }
 }
@@ -449,3 +573,10 @@ private fun formatMetric(value: Double, decimals: Int, suffix: String): String =
     } else {
         "--"
     }
+
+private fun formatClock(seconds: Float): String {
+    val wholeSeconds = seconds.coerceAtLeast(0f).toInt()
+    return "%02d:%02d".format(wholeSeconds / 60, wholeSeconds % 60)
+}
+
+private const val MAX_WAVEFORM_BARS = 72

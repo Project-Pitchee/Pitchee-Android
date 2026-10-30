@@ -133,13 +133,11 @@ internal fun RealtimePitchScreen() {
     val corePreferences = remember(context) { CorePreferences(context) }
     val chartStyle = pitchDisplayPreferences.style()
     val gapSeconds = pitchDisplayPreferences.gapThresholdMs() / 1000.0
-    // The chart follows the analyser's F0 range, with a little headroom on both
-    // sides so a value sitting on the limit is still visible.
     val minF0Hz = corePreferences.minF0Hz()
     val maxF0Hz = corePreferences.maxF0Hz()
-    val rangeValid = minF0Hz <= maxF0Hz
-    val axisMinHz = if (rangeValid) (minF0Hz - F0_RANGE_HEADROOM_LOW_HZ) else 0f
-    val axisMaxHz = if (rangeValid) (maxF0Hz + F0_RANGE_HEADROOM_HIGH_HZ) else 1f
+    val rangeValid = minF0Hz < maxF0Hz
+    val axisMinHz = if (rangeValid) minF0Hz else 0f
+    val axisMaxHz = if (rangeValid) maxF0Hz else 1f
     val passagePreferences = remember(context) { PassagePreferences(context) }
     var selectedPassageIndex by rememberSaveable(passagePreferences.officialIndex()) {
         mutableIntStateOf(passagePreferences.officialIndex())
@@ -158,13 +156,12 @@ internal fun RealtimePitchScreen() {
 
     fun toggleMonitoring() {
         transientRewindMessage = null
-        if (state.replaying) {
+        if (state.replaying || state.paused) {
             viewModel.resumeAnalysis()
             return
         }
         if (state.running || state.preparing) {
-            viewModel.finishSession()
-            viewModel.clearDisplay()
+            viewModel.pauseAnalysis()
             return
         }
         val granted = ContextCompat.checkSelfPermission(
@@ -291,7 +288,7 @@ internal fun RealtimePitchScreen() {
                 )
                 Spacer(Modifier.height(10.dp))
             }
-            val showToolbar = state.running || state.preparing || state.replaying
+            val showToolbar = state.running || state.preparing || state.replaying || state.paused
             val passage = passagePreferences.activePassage(selectedPassageIndex)
             val passageText = passage.text(context)
             val passageStyle = MaterialTheme.typography.bodyMedium
@@ -414,6 +411,7 @@ internal fun RealtimePitchScreen() {
                 PitchMonitorControls(
                     running = state.running,
                     preparing = state.preparing,
+                    paused = state.paused,
                     replaying = state.replaying,
                     onToggle = ::toggleMonitoring,
                     onRewind = ::rewind,
@@ -495,11 +493,12 @@ private fun wordBoundaryBefore(
 private fun PitchMonitorControls(
     running: Boolean,
     preparing: Boolean,
+    paused: Boolean,
     replaying: Boolean,
     onToggle: () -> Unit,
     onRewind: () -> Unit,
 ) {
-    val showToolbar = running || preparing || replaying
+    val showToolbar = running || preparing || replaying || paused
     var toolbarExpanded by remember { mutableStateOf(false) }
     LaunchedEffect(showToolbar) {
         if (showToolbar) {
@@ -617,7 +616,7 @@ private fun PitchMonitorControls(
                                 contentDescription = stringResource(
                                     when {
                                         running -> R.string.pitch_stop_monitoring
-                                        replaying -> R.string.pitch_resume_analysis
+                                        paused || replaying -> R.string.pitch_resume_analysis
                                         else -> R.string.pitch_start_monitoring
                                     },
                                 ),
@@ -687,6 +686,7 @@ private fun PitchChart(
     val feminineColor = PitcheeColorTokens.Feminine
     val masculineColor = PitcheeColorTokens.Masculine
     val traceColor = MaterialTheme.colorScheme.onSurface
+    val surfaceColor = MaterialTheme.colorScheme.surface
     val windowSeconds = if (replayWindowEndSeconds != null) {
         REPLAY_WINDOW_SECONDS
     } else {
@@ -699,7 +699,11 @@ private fun PitchChart(
         ?: points.lastOrNull()?.timestampSeconds
         ?: 0.0
     val firstTimestamp = latestTimestamp - windowSeconds
-    val averageF0 = averageF0InWindow(points, firstTimestamp)
+    val averageF0 = if (replayWindowEndSeconds == null) {
+        averageF0InWindow(points, firstTimestamp)
+    } else {
+        null
+    }
     val animatedAverageF0 by animateFloatAsState(
         targetValue = averageF0 ?: 0f,
         animationSpec = spring(dampingRatio = 0.82f, stiffness = 90f),
@@ -834,14 +838,35 @@ private fun PitchChart(
 
             playbackPositionSeconds?.let { positionSeconds ->
                 val x = (
-                    (positionSeconds - firstTimestamp) / windowSeconds
-                    ).toFloat().coerceIn(0f, 1f) * size.width
+                    plotLeftPx +
+                        plotWidthPx * (
+                            (positionSeconds - firstTimestamp) / windowSeconds
+                            ).toFloat().coerceIn(0f, 1f)
+                    )
                 drawLine(
                     color = averageColor,
                     start = Offset(x, plotTopPx),
                     end = Offset(x, size.height),
                     strokeWidth = 2.dp.toPx(),
                 )
+                f0AtPlaybackPosition(points, positionSeconds)?.let { hz ->
+                    val point = Offset(x, yForPx(hz))
+                    drawCircle(
+                        color = traceColor.copy(alpha = 0.14f),
+                        radius = 9.dp.toPx(),
+                        center = point,
+                    )
+                    drawCircle(
+                        color = F0_DOT_COLOR,
+                        radius = 4.6.dp.toPx(),
+                        center = point,
+                    )
+                    drawCircle(
+                        color = surfaceColor,
+                        radius = 1.5.dp.toPx(),
+                        center = point,
+                    )
+                }
             }
         }
 
@@ -913,12 +938,16 @@ private fun buildF0TraceGeometry(
     val segments = mutableListOf<List<Offset>>()
     var current = mutableListOf<Offset>()
     var previousTime = Double.NEGATIVE_INFINITY
-    for (index in 0 until points.size) {
+    // Keep one window of samples before the visible range so a segment can
+    // enter and leave the clipped canvas cleanly. Looking up that boundary
+    // avoids walking the full 30-second history on every display frame.
+    val firstRetainedIndex = firstPointAtOrAfter(
+        points = points,
+        timestampSeconds = firstTimestamp - windowSeconds,
+    )
+    for (index in firstRetainedIndex until points.size) {
         val point = points[index]
         val hz = point.f0Hz ?: continue
-        // Keep one window of samples past the visible range and let the canvas
-        // clip them, so a sample slides off the edge instead of blinking out.
-        if (point.timestampSeconds < firstTimestamp - windowSeconds) continue
         if (current.isNotEmpty() && point.timestampSeconds - previousTime > maxGapSeconds) {
             segments += current.toList()
             current = mutableListOf()
@@ -993,23 +1022,12 @@ private fun buildF0TraceGeometry(
     return F0TraceGeometry(path = curvePath, dots = dots)
 }
 
-/** B-spline position between control points at [index] and [index] + 1. */
-private fun splinePoint(points: List<Offset>, index: Int): Offset {
-    val a = points[index]
-    val b = points[index + 1]
-    val c = points[index + 2]
-    return Offset(
-        (a.x + 4f * b.x + c.x) / 6f,
-        (a.y + 4f * b.y + c.y) / 6f,
-    )
-}
-
 private fun averageF0InWindow(points: List<F0Point>, firstTimestamp: Double): Float? {
     var sum = 0.0
     var count = 0
-    for (index in 0 until points.size) {
+    val firstIndex = firstPointAtOrAfter(points, firstTimestamp)
+    for (index in firstIndex until points.size) {
         val point = points[index]
-        if (point.timestampSeconds < firstTimestamp) continue
         val hz = point.f0Hz ?: continue
         sum += hz
         count++
@@ -1019,13 +1037,17 @@ private fun averageF0InWindow(points: List<F0Point>, firstTimestamp: Double): Fl
     return if (average.isFinite()) average.toFloat() else null
 }
 
+/** First index whose timestamp is at or after [timestampSeconds]. */
+private fun firstPointAtOrAfter(
+    points: List<F0Point>,
+    timestampSeconds: Double,
+): Int {
+    val index = points.binarySearchBy(timestampSeconds) { it.timestampSeconds }
+    return if (index >= 0) index else -index - 1
+}
+
 private const val DOT_RADIUS_DP = 2.6f
 private val F0_DOT_COLOR = Color(0xFFFF9500)
-
-// Headroom around the configured SwiftF0 range, so a value sitting exactly on a
-// limit is still drawn inside the plot.
-private const val F0_RANGE_HEADROOM_LOW_HZ = 30f
-private const val F0_RANGE_HEADROOM_HIGH_HZ = 50f
 
 /** Male/female split, always drawn even when it falls outside the range. */
 private const val F0_BOUNDARY_HZ = 165f

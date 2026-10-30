@@ -38,7 +38,35 @@ class ScoreInsightTest {
         val insight = ScoreInsight.from(result)
 
         assertEquals(ScoreMetric.F0, insight.bottleneckMetric)
-        assertEquals(R.string.insight_desc_bottleneck_f0, insight.bottleneckDescription?.resourceId)
+        assertEquals(
+            R.string.rule_doc_low_f0_natural_guidance,
+            insight.bottleneckDescription?.resourceId,
+        )
+    }
+
+    @Test
+    fun mainBottleneckUsesGuidanceFromTheMatchedRule() {
+        val result = result(
+            standardScore = 40.0,
+            naturalnessScore = 75.0,
+            meanF0 = 190.0,
+            composite = CompositeScore(
+                baseScore = 72.0,
+                finalScore = 59.0,
+                cap = 59.0,
+                rule = "high_f0_male_cap",
+                limited = true,
+                boosted = false,
+            ),
+        )
+
+        val insight = ScoreInsight.from(result)
+
+        assertEquals(ScoreMetric.TIMBRE, insight.bottleneckMetric)
+        assertEquals(
+            R.string.rule_doc_high_f0_male_guidance,
+            insight.bottleneckDescription?.resourceId,
+        )
     }
 
     @Test

@@ -76,7 +76,6 @@ internal fun PianoKeysScreen(onBack: () -> Unit) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 ScreenTitle(
                     title = stringResource(R.string.piano_title),
-                    subtitle = stringResource(R.string.piano_subtitle),
                     onBack = onBack,
                 )
                 Spacer(Modifier.height(8.dp))

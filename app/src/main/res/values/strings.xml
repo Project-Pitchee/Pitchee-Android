@@ -4,6 +4,18 @@
 
     <string name="settings_title">设置</string>
     <string name="settings_language">语言</string>
+    <string name="settings_theme">主题</string>
+    <string name="theme_coral">珊瑚</string>
+    <string name="theme_rose">玫瑰</string>
+    <string name="theme_ocean">海盐</string>
+    <string name="theme_forest">森林</string>
+    <string name="theme_indigo">靛蓝</string>
+    <string name="theme_amber">琥珀</string>
+    <string name="settings_advanced">高级</string>
+    <string name="settings_advanced_desc">音高与性能</string>
+    <string name="settings_version_format">版本 %1$s</string>
+    <string name="settings_about_tagline">设备端声音分析</string>
+    <string name="settings_open_source_count">%1$d 项</string>
     <string name="language_chinese">中文</string>
     <string name="language_english">English</string>
     <string name="settings_f0_title">音高</string>
@@ -26,9 +38,10 @@
     <string name="passage_source_custom">自定义语料</string>
     <string name="save_passage">保存语料</string>
     <string name="custom_passage_active">已使用自定义语料</string>
-    <string name="settings_app">应用</string>
+    <string name="settings_app">检查更新</string>
     <string name="settings_current_version">当前版本</string>
     <string name="settings_check_updates">检查更新</string>
+    <string name="settings_updates_title">检查更新</string>
     <string name="settings_auto_updates">自动检查更新</string>
     <string name="settings_auto_updates_desc">启动应用时检查 GitHub 上的新版本</string>
     <string name="update_up_to_date">当前已是最新版本</string>
@@ -224,7 +237,7 @@
     <string name="pitch_last_page">最后一页</string>
     <string name="pitch_resume_analysis">恢复分析</string>
     <string name="pitch_start_monitoring">开始实时监测</string>
-    <string name="pitch_stop_monitoring">停止监测</string>
+    <string name="pitch_stop_monitoring">暂停分析</string>
     <string name="spectrum_title">频谱</string>
     <string name="spectrum_subtitle">实时声音频率分布</string>
     <string name="spectrum_preparing">正在准备频谱分析</string>
@@ -250,12 +263,22 @@
     <string name="piano_subtitle">点击发声，按住持续</string>
     <string name="more_voice_health_title">声音健康</string>
     <string name="more_voice_health_description">检测声音的稳定度与沙哑程度</string>
-    <string name="voice_health_title">声音健康（bata）</string>
+    <string name="knowledge_base_title">声音知识库</string>
+    <string name="knowledge_category_rules">规则说明</string>
+    <string name="knowledge_category_practice">练习指南</string>
+    <string name="knowledge_article_load_failed">文章加载失败</string>
+    <string name="knowledge_article_load_failed_desc">请稍后重新打开。</string>
+    <string name="knowledge_article_source">内容来自 Pitchee Articles</string>
+    <string name="knowledge_related_reading">相关阅读</string>
+    <string name="knowledge_open_metric_guide">查看 %1$s 练习</string>
+    <string name="voice_health_title">声音健康（Beta）</string>
     <string name="voice_health_subtitle">请自然说话</string>
     <string name="voice_health_stop">停止并分析</string>
     <string name="voice_health_analyzing">正在分析声音健康</string>
     <string name="voice_health_minimum_duration">至少录制 5 秒</string>
-    <string name="voice_health_valid_speech">有效语音 %1$.1f / 5.0 秒</string>
+    <string name="voice_health_valid_speech">%1$.1f / 5.0 秒</string>
+    <string name="voice_capture_progress">%1$.1f / %2$.1f 秒</string>
+    <string name="analysis_recording_minimum">至少 5 秒</string>
     <string name="voice_health_need_more_speech">进度条满后即可分析</string>
     <string name="voice_health_stage_preparing">正在准备声音健康分析</string>
     <string name="voice_health_stage_extracting">正在提取声音特征</string>
@@ -275,6 +298,7 @@
     <string name="analysis_inference_title">推理你的声音</string>
     <string name="click_to_record">点击开始录制</string>
     <string name="recording_elapsed">正在录音，%1$.1f 秒</string>
+    <string name="recording_speech_progress">%1$.1f / 5.0 秒</string>
     <string name="analysis_phase_audio">正在读取录音</string>
     <string name="analysis_phase_models">正在加载模型</string>
     <string name="analysis_phase_inference">正在分析声音</string>
@@ -306,21 +330,21 @@
     <string name="insight_rule_continuous">连续评分</string>
     <string name="insight_desc_f0_unavailable">未找到可靠的音高，本次直接使用音色分，未套用综合分公式。</string>
     <string name="insight_desc_qualified_boost">三项条件同时满足时，综合分进入 60–100 区间。</string>
-    <string name="insight_desc_high_f0_low_naturalness">音高已经较高，但自然度低于 50。</string>
-    <string name="insight_desc_low_f0">自然度达标，但音高不高于 165 Hz，当前音高限制了综合分。</string>
-    <string name="insight_desc_low_f0_low_naturalness">音高不高于 165 Hz 且自然度低于 50，音高和自然度同时拖分。</string>
-    <string name="insight_desc_timbre_cap">音高高于 165 Hz，但模型音色分低于 50，音色仍在限制最终结果。</string>
-    <string name="insight_desc_continuous">本次没有触发封顶或提升，直接使用四项连续评分公式。</string>
+    <string name="insight_desc_high_f0_low_naturalness">音高已经较高，但自然度低于 50，限制了最终分数。</string>
+    <string name="insight_desc_low_f0">自然度达标，但音高小于 165 Hz，限制了最终分数。</string>
+    <string name="insight_desc_low_f0_low_naturalness">音高低于 165 Hz 且自然度低于 50，同时限制了最终分数。</string>
+    <string name="insight_desc_timbre_cap">音高高于 165 Hz，但音色分低于 50，限制了最终分数。</string>
+    <string name="insight_desc_continuous">本次没有触发封顶或提升。</string>
     <string name="insight_impact_timbre">综合分 = 音色分</string>
     <string name="insight_impact_boost_format">规则提升 +%1$.1f</string>
     <string name="insight_impact_boost_met">已满足提升条件</string>
     <string name="insight_impact_no_cap_boost">无封顶、无提升</string>
     <string name="insight_impact_cap_reduced_format">封顶 %1$s，实际压低 %2$.1f 分</string>
     <string name="insight_impact_cap_unchanged_format">规则上限 %1$s，本次未继续压低</string>
-    <string name="insight_bottleneck_naturalness">自然度低于阈值</string>
-    <string name="insight_bottleneck_f0">音高低于阈值</string>
-    <string name="insight_bottleneck_f0_naturalness">音高和自然度低于阈值</string>
-    <string name="insight_bottleneck_timbre">音色分低于阈值</string>
+    <string name="insight_bottleneck_naturalness">自然度过低</string>
+    <string name="insight_bottleneck_f0">音高过低</string>
+    <string name="insight_bottleneck_f0_naturalness">音高和自然度过低</string>
+    <string name="insight_bottleneck_timbre">音色分过低</string>
     <string name="insight_desc_bottleneck_f0_unavailable">没有可靠的音高，本次没有触发其他综合分规则。</string>
     <string name="insight_desc_bottleneck_naturalness">音高高于 165 Hz，但自然度低于 50，触发最高 30 分规则。</string>
     <string name="insight_desc_bottleneck_f0">自然度达到 50，但音高不高于 165 Hz，触发最高 59 分规则。</string>
@@ -336,8 +360,12 @@
     <string name="score_pass_label">评估结果</string>
     <string name="score_pass_title">你的声音很pass</string>
     <string name="score_pass_desc">本次没有触发主要短板规则。</string>
+    <string name="score_suggestions_title">建议</string>
+    <string name="score_suggestions_all">全部文章</string>
+    <string name="score_suggestions_none">这次结果暂时没有对应文章。</string>
     <string name="score_view_rules">查看评分细则</string>
     <string name="score_final_score">本次综合分</string>
+    <string name="score_pass_threshold_hint">60分为合格分</string>
     <string name="score_current_metrics">本次指标</string>
     <string name="score_current_rule">本次命中规则</string>
     <string name="score_other_rules">未触发的其他规则</string>
@@ -354,52 +382,53 @@
     <string name="score_base_formulas_note">所有规则以此基础计算</string>
     <string name="score_formula_variables">Standard 是模型识别的音色分；Naturalness 是自然度分；音高是整段语音的平均音高，单位为 Hz。带 _r 的变量会被限制在 0 到 1 之间。Base 是应用规则前的基础分，Final 是结果页显示的综合分。</string>
     <string name="score_formula_variables_masculine">Standard 是男性化倾向，即 100 减去模型的女性化倾向分；Naturalness 是自然度分；音高是整段语音的平均音高，单位为 Hz。归一化变量限制在 0 到 1 之间：音高分量在 110 Hz 及以下为 1，在 200 Hz 及以上为 0。Base 是调整前的基础分，Final 是显示的男性化评分。</string>
-    <string name="score_label_timbre">音色分</string>
-    <string name="score_label_naturalness">自然度</string>
-    <string name="score_label_mean_f0">平均音高</string>
+    <string name="score_label_timbre">音色分 S</string>
+    <string name="score_label_naturalness">自然度 N</string>
+    <string name="score_label_mean_f0">平均音高 F0</string>
     <string name="score_value_score">%1$.1f</string>
     <string name="score_value_hz">%1$.0f Hz</string>
     <string name="score_value_not_detected">未检测到</string>
+    <string name="score_tier_fail">不通过</string>
     <string name="score_tier_limiter">综分限制项</string>
     <string name="score_tier_fair">好</string>
     <string name="score_tier_good">良好</string>
     <string name="score_tier_great">很好</string>
     <string name="score_tier_excellent">非常好</string>
-    <string name="score_metrics_toggle">显示音色分/音高指标</string>
+    <string name="score_metrics_toggle">我的指标</string>
     <string name="score_compare">对比上次</string>
-    <string name="score_f0_range_note">音高进度条按 110–200 Hz 映射；最终规则以 165 Hz 为关键分界。</string>
-    <string name="score_f0_range_note_masculine">音高进度条按 110–200 Hz 映射；音高越低于 165 Hz，男性向得分越高。</string>
+    <string name="score_f0_range_note">*按 100–250 Hz 映射</string>
+    <string name="score_f0_range_note_masculine">*男性向音高分数 = (250 − F0) ÷ 150 × 100</string>
     <string name="score_rules_title">评分规则</string>
     <string name="score_rules_subtitle">结合本次指标查看综合分的计算过程</string>
     <string name="pitch_average_f0_format">平均 %1$.0f Hz</string>
     <string name="rule_doc_continuous_title">连续评分</string>
-    <string name="rule_doc_continuous_guidance">这次没有触发特殊限制。保持现在的节奏再录一次，就能观察趋势变化。</string>
+    <string name="rule_doc_continuous_guidance">你在音高/音色/自然度上都已经及格，但是仍有改进点。</string>
     <string name="rule_doc_continuous_condition">未命中下列任何封顶或提升规则</string>
     <string name="rule_doc_continuous_handling">综合分采用 Base。</string>
     <string name="rule_doc_boost_title">加分</string>
-    <string name="rule_doc_boost_guidance">三项指标都已经过线。继续用现在舒服的音高和语速朗读，稳定度会更容易保持。</string>
-    <string name="rule_doc_boost_condition">音高 > 165，Naturalness > 80，Standard > 50</string>
+    <string name="rule_doc_boost_guidance">完全“Pass”。恭喜！请继续加油。</string>
+    <string name="rule_doc_boost_condition">F0 > 165，Naturalness > 80，Standard > 50</string>
     <string name="rule_doc_boost_handling">综合分最高为 100。\n如果 promoted > Base，综合分采用 promoted。</string>
-    <string name="rule_doc_high_f0_stylized_title">高音高、低自然度封顶</string>
-    <string name="rule_doc_high_f0_stylized_guidance">音高已经上去了，但自然度还没跟上。下一次先放松语气，不必刻意抬高音调。</string>
-    <string name="rule_doc_high_f0_stylized_condition">音高 > 165，Naturalness &lt; 50</string>
-    <string name="rule_doc_high_f0_stylized_handling">综合分最高为 30。\n请尝试自然说话，再提高音高。</string>
-    <string name="rule_doc_low_f0_natural_title">低音高封顶</string>
-    <string name="rule_doc_low_f0_natural_guidance">自然度已经不错，接下来把注意力放在音高上。声音不用抬高，保持舒服就好。</string>
-    <string name="rule_doc_low_f0_natural_condition">音高 ≤ 165，Naturalness ≥ 50</string>
-    <string name="rule_doc_low_f0_natural_handling">综合分最高为 59。\n下一次试着用稍高但仍舒服的音调朗读。</string>
+    <string name="rule_doc_high_f0_stylized_title">高音高、低自然度</string>
+    <string name="rule_doc_high_f0_stylized_guidance">刻意抬升音高而导致发声不健康的结果。请量力而行。</string>
+    <string name="rule_doc_high_f0_stylized_condition">F0 > 165，Naturalness &lt; 50</string>
+    <string name="rule_doc_high_f0_stylized_handling">综合分最高为 30。</string>
+    <string name="rule_doc_low_f0_natural_title">低音高</string>
+    <string name="rule_doc_low_f0_natural_guidance">自然度已经不错，接下来把注意力放在音高上。</string>
+    <string name="rule_doc_low_f0_natural_condition">F0 ≤ 165，Naturalness ≥ 50</string>
+    <string name="rule_doc_low_f0_natural_handling">综合分最高为 59。</string>
     <string name="rule_doc_low_f0_stylized_title">低音高、低自然度</string>
-    <string name="rule_doc_low_f0_stylized_guidance">这次音高和自然度都需要照顾。先放慢一点，完整自然地读完整个句子。</string>
-    <string name="rule_doc_low_f0_stylized_condition">音高 ≤ 165，Naturalness &lt; 50</string>
-    <string name="rule_doc_low_f0_stylized_handling">综合分最高为 20。\n先把朗读放松，再逐步提高音高。</string>
+    <string name="rule_doc_low_f0_stylized_guidance">音高和自然度都需要照顾。请先完整自然地读完整段语料。</string>
+    <string name="rule_doc_low_f0_stylized_condition">F0 ≤ 165，Naturalness &lt; 50</string>
+    <string name="rule_doc_low_f0_stylized_handling">综合分最高为 20。</string>
     <string name="rule_doc_high_f0_male_title">音色分不足</string>
-    <string name="rule_doc_high_f0_male_guidance">音高和自然度已经达标，接下来重点练音色。试着让声音更明亮、更轻松。</string>
-    <string name="rule_doc_high_f0_male_condition">音高 > 165，Naturalness ≥ 50，Standard &lt; 50</string>
-    <string name="rule_doc_high_f0_male_handling">综合分最高为 59。\n下一次重点观察 Standard 的变化。</string>
+    <string name="rule_doc_high_f0_male_guidance">你的声音在高音调下仍保持自然，说明你的问题不在音高上。接下来请尝试缩短声道，将共鸣焦点前移，方法包括但不限于：舌位前移、唇部展开。</string>
+    <string name="rule_doc_high_f0_male_condition">F0 > 165，Naturalness ≥ 50，Standard &lt; 50</string>
+    <string name="rule_doc_high_f0_male_handling">综合分最高为 59。</string>
     <string name="rule_doc_f0_unavailable_title">音高不可用</string>
     <string name="rule_doc_f0_unavailable_guidance">没有识别到稳定音高，下次可以离麦克风近一点。</string>
     <string name="rule_doc_f0_unavailable_condition">音高不可用</string>
-    <string name="rule_doc_f0_unavailable_handling">综合分直接采用音色分 Standard。</string>
+    <string name="rule_doc_f0_unavailable_handling">综合分直接采用音色分。</string>
     <string name="rule_doc_masculine_continuous_title">男性向连续评分</string>
     <string name="rule_doc_masculine_continuous_guidance">音高低于 165 Hz、音色更偏中性或低沉时，男性向综合分会提高。</string>
     <string name="rule_doc_masculine_continuous_condition">适用于能够完成分析的录音。</string>
@@ -411,29 +440,19 @@
 
     <string-array name="reading_passage_titles">
         <item>北风与太阳</item>
-        <item>乌鸦喝水</item>
-        <item>小马过河</item>
-        <item>龟兔赛跑</item>
-        <item>狐狸和葡萄</item>
-        <item>蚂蚁和蚱蜢</item>
-        <item>农夫与蛇</item>
-        <item>狮子和老鼠</item>
-        <item>城市老鼠和乡下老鼠</item>
-        <item>狐狸和乌鸦</item>
-        <item>两个旅人与熊</item>
+        <item>课题分离</item>
+        <item>社会时间</item>
+        <item>控制二分法</item>
+        <item>心流</item>
+        <item>沉没成本</item>
     </string-array>
     <string-array name="reading_passage_texts">
-        <item>北风和太阳争论谁更有力量。路上来了一位行人，他们约定，谁能让行人脱下外套，谁就赢。北风用力吹，行人反而把外套裹得更紧。太阳温暖地照着，行人渐渐感到热，最后主动脱下了外套。</item>
-        <item>一只乌鸦口渴了，到处找水喝。它看见一个瓶子，瓶子里有水，可是水位太低，乌鸦够不着。乌鸦衔来一颗颗小石子放进瓶里。瓶子里的水渐渐升高，乌鸦终于喝到了水。</item>
-        <item>小马要把半袋麦子送到磨坊。一条小河挡住了路。牛说河水很浅，松鼠说河水很深。小马回家问妈妈。妈妈让它自己去试一试。小马小心地走进河里，发现河水既不像牛说的那么浅，也不像松鼠说的那么深。</item>
-        <item>兔子嘲笑乌龟走得太慢，乌龟便提出比赛。兔子跑得很快，很快就把乌龟甩在后面。它觉得胜券在握，就在路边睡着了。乌龟一步一步向前走，从兔子身边经过，最后先到达终点。</item>
-        <item>一只饥饿的狐狸看见架子上挂着一串葡萄。它跳了好几次，始终够不着。狐狸最后转身离开，嘴里说：“这些葡萄一定是酸的。”有些事情做不到时，人们常常会说它不值得。</item>
-        <item>夏天里，蚂蚁忙着搬运粮食，蚱蜢却每天唱歌玩耍。蚱蜢笑蚂蚁太辛苦。冬天来了，蚱蜢找不到食物，只能向蚂蚁求助。蚂蚁提醒它，夏天准备，冬天才不会挨饿。</item>
-        <item>寒冷的冬天，农夫在路边发现一条冻僵的蛇。他把蛇放进怀里取暖。蛇醒来后恢复了本性，咬伤了农夫。农夫后悔地说，他不该同情本性难移的恶人。</item>
-        <item>狮子抓住了一只小老鼠。老鼠请求狮子放它走，并答应以后一定报答。狮子觉得它太小，不会有什么用处，但还是放了它。后来狮子落入猎人的网中，老鼠咬断绳子，救出了狮子。</item>
-        <item>乡下老鼠请城市老鼠吃简单的粮食。城市老鼠嫌这里清苦，邀请它去城里享受美食。它们在城里刚坐下，猫和狗就接连出现。乡下老鼠只好逃回家，觉得安稳比丰盛更重要。</item>
-        <item>乌鸦叼着一块肉停在树上。狐狸很想得到它，就不断夸乌鸦的羽毛漂亮、歌声动听。乌鸦得意地张嘴唱歌，肉掉了下来。狐狸叼起肉说，下次不要轻易相信奉承。</item>
-        <item>两个旅人一起赶路，突然遇到一只熊。一个人迅速爬上树，另一个人来不及逃，只好躺下装死。熊闻了闻他的脸，以为他没有呼吸，便转身离开。树上的人下来后问熊说了什么。地上的人回答：“它说，危险时抛下朋友的人不可靠。”</item>
+        <item>北风与太阳争论谁更有力量。这时，一位裹着斗篷的旅人沿大路走来。他们决定拿旅人作比试：谁能让他脱下斗篷，谁就更强。北风先鼓起力气，向旅人猛烈吹去。旅人却把斗篷裹得越来越紧。北风越吹越急，旅人越是拉低帽檐、缩起肩膀。最后，北风疲惫地停了下来。太阳从云后露面，先温和地照着大地。旅人感到暖意，慢慢松开斗篷。太阳继续升高，空气变得炎热，旅人终于自己脱下斗篷，坐到树荫下休息。北风只得承认太阳更强：温和与耐心，有时比强硬更有力量。</item>
+        <item>阿德勒心理学把人际关系中的问题分成“我的课题”和“他人的课题”。我如何表达、是否诚实、愿意承担什么后果，是我的课题；别人是否理解、赞同或改变，是对方的课题。课题分离不是冷漠，也不是拒绝关心，而是不替别人做选择，也不让别人的评价接管自己的人生。边界清楚之后，人反而更有能力以平等和稳定的方式与他人相处。</item>
+        <item>社会时间不是钟表上均匀流动的物理时间，而是群体共同形成的节奏与秩序。节日、工作周期、生命阶段和代际记忆，都在为时间赋予意义。社会也会通过制度与习俗告诉人们，什么时候该上学、工作或成家，并在不知不觉中影响我们对“太早”和“太晚”的判断。看见这些安排，不是为了拒绝所有规则，而是为了分辨哪些节奏真正适合自己，哪些只是外界替我们写好的时间表。</item>
+        <item>斯多葛哲学把事物分成两类：能够由自己控制的，和不能由自己控制的。判断、选择与努力属于前者；他人的看法、已经发生的事实、天气和最终结果属于后者。许多痛苦来自把精力投向不可控之处，却忽略了真正能够行动的地方。控制二分法不是放弃目标，而是在尽力之后，把不属于自己的部分交还给世界。人仍然认真行动，却不必把每一个结果都变成对自己的审判。</item>
+        <item>心流是一种高度投入的状态。人在其中会忘记时间，也暂时忘记对自我的过度关注。它通常出现在目标清楚、反馈及时、难度与能力大致匹配的活动里。任务太简单会让人厌倦，太难又会带来焦虑；当挑战略高于当前能力，注意力便会自然收拢到手头的事情上。心流不是逼迫自己永远高效，而是找到可以持续投入的节奏，让专注本身成为体验的一部分。</item>
+        <item>沉没成本是已经付出、无法收回的时间、金钱或感情。理性地说，继续还是停止，只应取决于未来的收益与代价；但人常常因为“已经投入这么多”而不肯离开。越舍不得过去，越容易为过去继续加码。识别沉没成本，不是否定曾经的认真，而是承认有些事情的价值已经结束。真正困难的选择，往往不是重新开始，而是允许自己停止。</item>
     </string-array>
     <string name="passage_custom_title">自定义语料</string>
     <string name="error_permission_missing">缺少麦克风权限</string>
@@ -499,6 +518,7 @@
     <string name="settings_author_lvy_url">https://github.com/HaoduyouduDev</string>
     <string name="settings_author_ryo_url">https://github.com/RyouDYFZ</string>
     <string name="settings_license_material_icons">Material Symbols（Apache-2.0）</string>
+    <string name="settings_license_pitchee_articles">Pitchee Articles（GPL-3.0-only）</string>
     <string name="onboarding_welcome_title">用声音，
 更了解自己</string>
     <string name="onboarding_welcome_subtitle">Pitchee 会把声音变成清晰、可追踪的反馈，陪你记录每一次变化。</string>
@@ -517,4 +537,6 @@
     <string name="voice_profile_masculine_title">男性向声音</string>
     <string name="voice_profile_masculine_description">探索更低沉、厚实的声音</string>
     <string name="settings_voice_goal">声音目标</string>
+    <string name="settings_voice_goal_feminine_desc">更高的音高与更明亮的音色</string>
+    <string name="settings_voice_goal_masculine_desc">更低的音高与更沉稳的音色</string>
 </resources>

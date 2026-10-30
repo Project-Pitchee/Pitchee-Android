@@ -1,10 +1,14 @@
 package io.rovly.pitchee.feature.pitch
 
 import android.content.Context
-import android.util.Log
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.os.Handler
+import android.os.Looper
+import android.os.Process
+import android.util.Log
+import android.view.Choreographer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -16,11 +20,13 @@ import io.rovly.pitchee.data.history.HistoryStore
 import io.rovly.pitchee.data.history.RealtimeF0HistoryEntry
 import io.rovly.pitchee.data.preferences.PitchDisplayPreferences
 import io.rovly.pitchee.data.repository.PitcheeRepository
+import java.util.concurrent.Executors
 import kotlin.math.max
 import kotlin.math.min
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,9 +54,12 @@ data class PitchRewindFeedback(
     val isLastPage: Boolean,
 )
 
+private const val PLAYBACK_F0_HOLD_SECONDS = 0.15
+
 data class PitchUiState(
     val running: Boolean = false,
     val preparing: Boolean = false,
+    val paused: Boolean = false,
     val replaying: Boolean = false,
     val points: List<F0Point> = emptyList(),
     val playbackPositionSeconds: Double? = null,
@@ -61,7 +70,10 @@ data class PitchUiState(
 ) {
     val currentHz: Float?
         get() {
-            if (!running) return null
+            playbackPositionSeconds?.let { position ->
+                if (replaying) return f0AtPlaybackPosition(points, position)
+            }
+            if (!running && !paused) return null
             val latestTimestamp = points.lastOrNull()?.timestampSeconds ?: return null
             val lastVoiced = points.asReversed().firstOrNull { it.f0Hz != null } ?: return null
             return lastVoiced.f0Hz.takeIf {
@@ -72,6 +84,25 @@ data class PitchUiState(
     private companion object {
         const val CURRENT_F0_HOLD_SECONDS = 2.0
     }
+}
+
+/**
+ * Returns the F0 sample that owns the playback cursor. Holding the value for a
+ * short interval keeps the readout stable between detector frames while still
+ * clearing it inside silent gaps.
+ */
+internal fun f0AtPlaybackPosition(
+    points: List<F0Point>,
+    positionSeconds: Double,
+): Float? {
+    if (points.isEmpty() || !positionSeconds.isFinite()) return null
+    val binaryIndex = points.binarySearchBy(positionSeconds) { it.timestampSeconds }
+    val sampleIndex = if (binaryIndex >= 0) binaryIndex else -binaryIndex - 2
+    val sample = points.getOrNull(sampleIndex) ?: return null
+    if (positionSeconds - sample.timestampSeconds !in 0.0..PLAYBACK_F0_HOLD_SECONDS) {
+        return null
+    }
+    return sample.f0Hz
 }
 
 class PitchViewModel(
@@ -86,6 +117,19 @@ class PitchViewModel(
     private var realtimeStream: PitcheeRealtimeF0? = null
     private var audioTrack: AudioTrack? = null
     private val sessionLock = Any()
+    private val pendingPointsLock = Any()
+    private val inferenceDispatcher =
+        Executors.newSingleThreadExecutor { task ->
+            Thread({
+                // Native ncnn workers inherit the creating thread's nice value.
+                // Keeping the whole F0 pipeline below the UI protects the
+                // render thread while audio capture continues in real time.
+                runCatching {
+                    Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
+                }
+                task.run()
+            }, "Pitchee-F0-inference")
+        }.asCoroutineDispatcher()
 
     @Volatile
     private var runGeneration = 0
@@ -103,7 +147,9 @@ class PitchViewModel(
     private var ringWriteIndex = 0
 
     private val pendingPoints = ArrayDeque<F0Point>()
-    private var currentF0TimestampSeconds = 0.0
+    @Volatile
+    private var pointPublishCallback: Choreographer.FrameCallback? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     @Volatile
     private var totalSamples = 0L
@@ -119,7 +165,7 @@ class PitchViewModel(
 
     fun rewindFiveSeconds(): PitchRewindFeedback? {
         val current = mutableState.value
-        if (!current.running && !current.preparing && !current.replaying) return null
+        if (!current.running && !current.preparing && !current.replaying && !current.paused) return null
         if (!acceptControlEvent()) return null
 
         stopLiveCapture()
@@ -179,9 +225,27 @@ class PitchViewModel(
         startAnalysisInternal()
     }
 
+    fun pauseAnalysis() {
+        val current = mutableState.value
+        if (!current.running && !current.preparing) return
+        stopLiveCapture()
+        mutableState.update {
+            it.copy(
+                running = false,
+                preparing = false,
+                paused = true,
+                replaying = false,
+                playbackPositionSeconds = null,
+                replayWindowStartSeconds = null,
+                replayWindowEndSeconds = null,
+                replayTailEndSeconds = null,
+            )
+        }
+    }
+
     fun finishSession(): PitchSessionSummary {
         recordSession()
-        runGeneration++
+        advanceRunGeneration()
         analysisJob?.cancel()
         analysisJob = null
         stopPlaybackInternal()
@@ -192,6 +256,7 @@ class PitchViewModel(
             it.copy(
                 running = false,
                 preparing = false,
+                paused = false,
                 replaying = false,
                 playbackPositionSeconds = null,
                 replayWindowStartSeconds = null,
@@ -209,7 +274,7 @@ class PitchViewModel(
 
     fun clearDisplay() {
         val current = mutableState.value
-        if (!current.running && !current.preparing && !current.replaying) {
+        if (!current.running && !current.preparing && !current.replaying && !current.paused) {
             mutableState.value = PitchUiState()
         }
     }
@@ -220,7 +285,8 @@ class PitchViewModel(
             .coerceIn(MIN_F0_HOP_SAMPLES, MAX_F0_HOP_SAMPLES)
 
     private fun resetSession() {
-        runGeneration++
+        advanceRunGeneration()
+        stopPointPublisher()
         analysisJob?.cancel()
         analysisJob = null
         stopPlaybackInternal()
@@ -232,14 +298,17 @@ class PitchViewModel(
             ringWriteIndex = 0
             totalSamples = 0L
             replayTailSample = 0L
-            pendingPoints.clear()
+            synchronized(pendingPointsLock) {
+                pendingPoints.clear()
+            }
         }
         mutableState.value = PitchUiState()
     }
 
     @Synchronized
     private fun startAnalysisInternal() {
-        runGeneration++
+        advanceRunGeneration()
+        stopPointPublisher()
         analysisJob?.cancel()
         analysisJob = null
         recorder.pause()
@@ -249,6 +318,7 @@ class PitchViewModel(
             it.copy(
                 running = false,
                 preparing = true,
+                paused = false,
                 replaying = false,
                 playbackPositionSeconds = null,
                 replayWindowStartSeconds = null,
@@ -257,7 +327,8 @@ class PitchViewModel(
                 error = null,
             )
         }
-        analysisJob = viewModelScope.launch(Dispatchers.Default) {
+        startPointPublisher(generation)
+        analysisJob = viewModelScope.launch(inferenceDispatcher) {
             // The user's F0 sample rate sets the analyser hop. The analysis
             // window is fixed so ncnn never has to reallocate for a new input
             // shape while the microphone is running.
@@ -294,12 +365,14 @@ class PitchViewModel(
                 var processNanos = 0L
                 var processCalls = 0
                 var readNanos = 0L
+                var readCalls = 0
                 var emittedFrames = 0
                 var loadWindowStart = System.nanoTime()
                 while (isActive && generation == runGeneration) {
                     val readStart = System.nanoTime()
                     val count = recorder.read(buffer)
                     readNanos += System.nanoTime() - readStart
+                    readCalls++
                     if (count <= 0) continue
                     val chunk = if (count == buffer.size) buffer.copyOf() else buffer.copyOf(count)
                     synchronized(sessionLock) {
@@ -311,7 +384,7 @@ class PitchViewModel(
                                 // confidence gate, so the flag is the final word.
                                 // Core emits at the model's own frame rate; keep only
                                 // the frames the user asked for.
-                                currentF0TimestampSeconds = timestamp
+                                if (generation != runGeneration) return@process
                                 emittedFrames++
                                 val measuredF0 = f0Hz.takeIf { voiced && it.isFinite() }
                                 if (measuredF0 != null) {
@@ -324,41 +397,36 @@ class PitchViewModel(
                                     }
                                 }
                                 val point = F0Point(
-                                    timestampSeconds = currentF0TimestampSeconds,
+                                    timestampSeconds = timestamp,
                                     f0Hz = measuredF0,
                                     confidence = confidence,
                                 )
-                                // Hand every kept frame to the UI. The chart has its
-                                // own adaptive visual pacing, so analysis detail is
-                                // not lost just because a device needs fewer draws.
-                                pendingPoints.addLast(point)
-                                val batch = pendingPoints.toList()
-                                pendingPoints.clear()
-                                if (processCalls >= 60) {
-                                    val wall = System.nanoTime() - loadWindowStart
-                                    val load = processNanos * 100 / wall.coerceAtLeast(1)
-                                    Log.i(
-                                        "PitchPerf",
-                                        "inference avg=${processNanos / processCalls / 1_000_000}ms, " +
-                                            "load=$load%, " +
-                                            "window=${DEFAULT_REALTIME_CONTEXT_SAMPLES / 16}ms, " +
-                                            "f0 rate=${"%.1f".format(emittedFrames * 1e9 / wall)}/s",
-                                    )
-                                    processNanos = 0L
-                                    processCalls = 0
-                                    emittedFrames = 0
-                                    loadWindowStart = System.nanoTime()
-                                }
-                                mutableState.update { current ->
-                                    current.copy(
-                                        points = (current.points + batch)
-                                            .takeLast(MAX_POINTS),
-                                        error = null,
-                                    )
+                                synchronized(pendingPointsLock) {
+                                    if (generation == runGeneration) {
+                                        pendingPoints.addLast(point)
+                                    }
                                 }
                             }
                             processNanos += System.nanoTime() - processStart
                             processCalls++
+                            if (processCalls >= 60) {
+                                val wall = System.nanoTime() - loadWindowStart
+                                val load = processNanos * 100 / wall.coerceAtLeast(1)
+                                Log.i(
+                                    "PitchPerf",
+                                    "inference avg=${processNanos / processCalls / 1_000_000}ms, " +
+                                        "read avg=${readNanos / readCalls.coerceAtLeast(1) / 1_000_000}ms, " +
+                                        "load=$load%, " +
+                                        "window=${DEFAULT_REALTIME_CONTEXT_SAMPLES / 16}ms, " +
+                                        "f0 rate=${"%.1f".format(emittedFrames * 1e9 / wall)}/s",
+                                )
+                                processNanos = 0L
+                                processCalls = 0
+                                readNanos = 0L
+                                readCalls = 0
+                                emittedFrames = 0
+                                loadWindowStart = System.nanoTime()
+                            }
                         }
                     }
                 }
@@ -376,6 +444,8 @@ class PitchViewModel(
                 }
             } finally {
                 if (generation == runGeneration) {
+                    publishPendingPoints(generation)
+                    stopPointPublisher()
                     recordSession()
                     recorder.stop()
                 }
@@ -384,11 +454,76 @@ class PitchViewModel(
     }
 
     private fun stopLiveCapture() {
-        runGeneration++
+        advanceRunGeneration()
+        stopPointPublisher()
         val job = analysisJob
         analysisJob = null
         job?.cancel()
         recorder.pause()
+        publishPendingPoints(generation = null)
+    }
+
+    /**
+     * Publishes accumulated detector output at most once per display frame.
+     * Choreographer naturally follows the device's refresh rate, so a slow
+     * frame coalesces samples instead of queuing more recompositions behind it.
+     */
+    private fun startPointPublisher(generation: Int) {
+        viewModelScope.launch(Dispatchers.Main.immediate) {
+            if (generation != runGeneration || pointPublishCallback != null) return@launch
+            lateinit var callback: Choreographer.FrameCallback
+            callback = object : Choreographer.FrameCallback {
+                override fun doFrame(frameTimeNanos: Long) {
+                    if (
+                        generation != runGeneration ||
+                        pointPublishCallback !== callback
+                    ) {
+                        return
+                    }
+                    publishPendingPoints(generation)
+                    Choreographer.getInstance().postFrameCallback(callback)
+                }
+            }
+            pointPublishCallback = callback
+            Choreographer.getInstance().postFrameCallback(callback)
+        }
+    }
+
+    private fun stopPointPublisher() {
+        val callback = pointPublishCallback
+        pointPublishCallback = null
+        if (callback != null) {
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                Choreographer.getInstance().removeFrameCallback(callback)
+            } else {
+                mainHandler.post {
+                    Choreographer.getInstance().removeFrameCallback(callback)
+                }
+            }
+        }
+    }
+
+    private fun publishPendingPoints(generation: Int?) {
+        synchronized(pendingPointsLock) {
+            if (generation != null && generation != runGeneration) return
+            if (pendingPoints.isEmpty()) {
+                return
+            }
+            val batch = pendingPoints.toList()
+            pendingPoints.clear()
+            mutableState.update { current ->
+                current.copy(
+                    points = (current.points + batch).takeLast(MAX_POINTS),
+                    error = null,
+                )
+            }
+        }
+    }
+
+    private fun advanceRunGeneration() {
+        synchronized(pendingPointsLock) {
+            runGeneration++
+        }
     }
 
     private fun startReplayWindow(
@@ -503,6 +638,7 @@ class PitchViewModel(
             it.copy(
                 running = false,
                 preparing = false,
+                paused = false,
                 replaying = true,
                 playbackPositionSeconds = positionSample.toDouble() / SAMPLE_RATE,
                 replayWindowStartSeconds = windowStart.toDouble() / SAMPLE_RATE,
@@ -522,6 +658,7 @@ class PitchViewModel(
                 replaying = true,
                 running = false,
                 preparing = false,
+                paused = false,
                 playbackPositionSeconds = positionSample.toDouble() / SAMPLE_RATE,
             )
         }
@@ -539,6 +676,7 @@ class PitchViewModel(
             it.copy(
                 running = false,
                 preparing = false,
+                paused = false,
                 replaying = true,
                 playbackPositionSeconds = positionSample.toDouble() / SAMPLE_RATE,
                 replayWindowStartSeconds = windowStartSample.toDouble() / SAMPLE_RATE,
@@ -647,7 +785,8 @@ class PitchViewModel(
 
     override fun onCleared() {
         recordSession()
-        runGeneration++
+        advanceRunGeneration()
+        stopPointPublisher()
         val job = analysisJob
         analysisJob = null
         job?.cancel()
@@ -655,7 +794,15 @@ class PitchViewModel(
         recorder.stop()
         realtimeStream?.close()
         realtimeStream = null
-        if (job == null) repository.close() else job.invokeOnCompletion { repository.close() }
+        if (job == null) {
+            repository.close()
+            inferenceDispatcher.close()
+        } else {
+            job.invokeOnCompletion {
+                repository.close()
+                inferenceDispatcher.close()
+            }
+        }
     }
 
     companion object {

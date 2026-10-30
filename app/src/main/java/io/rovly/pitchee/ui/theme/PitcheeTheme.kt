@@ -9,9 +9,14 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -337,15 +342,135 @@ private val DarkExtendedColors = LightExtendedColors.copy(
     playerAccentContent = PitcheeColorTokens.MasculineContent,
 )
 
+private fun themeColorScheme(
+    palette: PitcheeThemePalette,
+    darkTheme: Boolean,
+): ColorScheme {
+    val base = if (darkTheme) DarkColors else LightColors
+    val primary = if (darkTheme) palette.darkPrimary else palette.lightPrimary
+    val secondary = if (darkTheme) palette.darkSecondary else palette.lightSecondary
+    val tertiary = if (darkTheme) palette.darkTertiary else palette.lightTertiary
+    val background = if (darkTheme) palette.darkBackground else palette.lightBackground
+    val onBackground = if (darkTheme) {
+        PitcheeColorTokens.DarkToolbarContent
+    } else {
+        Color(0xFF211A17)
+    }
+    val onPrimary = contrastingContent(primary)
+    val onSecondary = contrastingContent(secondary)
+    val onTertiary = contrastingContent(tertiary)
+    val primaryContainer = if (darkTheme) {
+        lerp(background, primary, 0.28f)
+    } else {
+        lerp(Color.White, primary, 0.20f)
+    }
+    val onPrimaryContainer = if (darkTheme) {
+        lerp(Color.White, primary, 0.18f)
+    } else {
+        lerp(Color.Black, primary, 0.34f)
+    }
+    val secondaryContainer = if (darkTheme) {
+        lerp(background, secondary, 0.25f)
+    } else {
+        lerp(Color.White, secondary, 0.20f)
+    }
+    val tertiaryContainer = if (darkTheme) {
+        lerp(background, tertiary, 0.25f)
+    } else {
+        lerp(Color.White, tertiary, 0.20f)
+    }
+    return base.copy(
+        primary = primary,
+        onPrimary = onPrimary,
+        primaryContainer = primaryContainer,
+        onPrimaryContainer = onPrimaryContainer,
+        inversePrimary = if (darkTheme) palette.lightPrimary else palette.darkPrimary,
+        secondary = secondary,
+        onSecondary = onSecondary,
+        secondaryContainer = secondaryContainer,
+        onSecondaryContainer = if (darkTheme) {
+            lerp(Color.White, secondary, 0.14f)
+        } else {
+            lerp(Color.Black, secondary, 0.34f)
+        },
+        tertiary = tertiary,
+        onTertiary = onTertiary,
+        tertiaryContainer = tertiaryContainer,
+        onTertiaryContainer = if (darkTheme) {
+            lerp(Color.White, tertiary, 0.14f)
+        } else {
+            lerp(Color.Black, tertiary, 0.34f)
+        },
+        background = background,
+        onBackground = onBackground,
+        surface = background,
+        onSurface = onBackground,
+        surfaceVariant = lerp(background, primary, if (darkTheme) 0.14f else 0.07f),
+        onSurfaceVariant = lerp(onBackground, background, 0.34f),
+        surfaceDim = if (darkTheme) background else lerp(background, Color.Black, 0.08f),
+        surfaceBright = if (darkTheme) {
+            lerp(background, Color.White, 0.15f)
+        } else {
+            background
+        },
+        surfaceContainerLowest = if (darkTheme) {
+            lerp(background, Color.Black, 0.32f)
+        } else {
+            lerp(Color.White, background, 0.22f)
+        },
+        surfaceContainerLow = lerp(
+            background,
+            primary,
+            if (darkTheme) 0.07f else 0.035f,
+        ),
+        surfaceContainer = lerp(
+            background,
+            primary,
+            if (darkTheme) 0.10f else 0.055f,
+        ),
+        surfaceContainerHigh = lerp(
+            background,
+            primary,
+            if (darkTheme) 0.14f else 0.085f,
+        ),
+        surfaceContainerHighest = lerp(
+            background,
+            primary,
+            if (darkTheme) 0.19f else 0.12f,
+        ),
+        inverseSurface = onBackground,
+        inverseOnSurface = background,
+        outline = lerp(onBackground, background, 0.42f),
+        outlineVariant = lerp(background, onBackground, if (darkTheme) 0.20f else 0.14f),
+    )
+}
+
+private fun contrastingContent(background: Color): Color =
+    if (background.luminance() > 0.42f) Color(0xFF241A16) else Color.White
+
 @Composable
 fun PitcheeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
+    val context = LocalContext.current
+    val preferences = remember(context) { ThemePreferences(context) }
+    val controller = remember(preferences) {
+        PitcheeThemeController(
+            initial = preferences.selected(),
+            preferences = preferences,
+        )
+    }
     val extendedColors = if (darkTheme) DarkExtendedColors else LightExtendedColors
-    CompositionLocalProvider(LocalPitcheeExtendedColors provides extendedColors) {
+    val colorScheme = remember(controller.palette, darkTheme) {
+        themeColorScheme(controller.palette, darkTheme)
+    }
+    CompositionLocalProvider(
+        LocalPitcheeExtendedColors provides extendedColors,
+        LocalPitcheeThemeController provides controller,
+    ) {
         MaterialTheme(
-            colorScheme = if (darkTheme) DarkColors else LightColors,
+            colorScheme = colorScheme,
             typography = PitcheeTypography,
             shapes = PitcheeShapes,
             content = content,

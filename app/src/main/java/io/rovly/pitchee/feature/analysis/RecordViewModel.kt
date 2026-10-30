@@ -3,7 +3,8 @@ package io.rovly.pitchee.feature.analysis
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
-import android.os.SystemClock
+import android.util.Log
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -16,23 +17,25 @@ import io.rovly.pitchee.data.history.AnalysisHistoryEntry
 import io.rovly.pitchee.data.history.HistoryStore
 import io.rovly.pitchee.data.model.PitcheeResult
 import io.rovly.pitchee.data.model.SpeechSegmentScore
-import io.rovly.pitchee.data.model.hasSpeechSecondsAtLeast
 import io.rovly.pitchee.data.model.scoreSpeechSegments
 import io.rovly.pitchee.data.repository.PitcheeRepository
 import io.rovly.pitchee.feature.settings.toScoreProfile
 import io.rovly.pitchee.feature.settings.VoicePreferencePreferences
-import kotlin.coroutines.coroutineContext
+import java.io.File
+import kotlin.math.abs
+import kotlin.math.sqrt
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import space.pitchee.core.PitcheePhase
 import space.pitchee.core.PitcheeProgress
-import space.pitchee.core.PitcheeProgressStage
 import space.pitchee.core.PitcheeScoreProfile
 
 data class PreviousMetrics(
@@ -46,6 +49,7 @@ sealed interface RecordUiState {
 
     data class Recording(
         val elapsedSeconds: Float,
+        val speechSeconds: Float,
         val amplitudes: List<Float>,
     ) : RecordUiState
 
@@ -65,7 +69,8 @@ sealed interface RecordUiState {
     ) : RecordUiState
 
     data class Error(
-        val message: String,
+        val message: String? = null,
+        @get:StringRes val messageRes: Int? = null,
         val audio: RecordedAudio? = null,
     ) : RecordUiState
 }
@@ -78,8 +83,26 @@ internal class RecordViewModel(
     private val historyStore: HistoryStore,
     private val voicePreferences: VoicePreferencePreferences,
 ) : ViewModel() {
-    private var timerJob: Job? = null
+    private var captureJob: Job? = null
+    private var vadJob: Job? = null
+    private var vadChannel: Channel<VadWindow>? = null
     private var retainedAudio: RecordedAudio? = null
+    private var stopping = false
+
+    @Volatile
+    private var captureActive = false
+
+    @Volatile
+    private var latestSpeechSeconds = 0.0
+
+    @Volatile
+    private var capturedSamples = 0L
+
+    private val vadRollingSamples = FloatArray(VAD_WINDOW_SAMPLES)
+    private var vadRollingWriteIndex = 0
+    private var vadRollingCount = 0
+    private var samplesSinceLastVad = 0
+
     private var lastResultScore: Double? = scoreHistory
         .getFloat(KEY_LAST_RESULT_SCORE, NO_PREVIOUS_SCORE)
         .takeUnless { it == NO_PREVIOUS_SCORE }
@@ -96,7 +119,8 @@ internal class RecordViewModel(
 
     fun startRecording() {
         if (mutableState.value is RecordUiState.Recording ||
-            mutableState.value is RecordUiState.Analyzing
+            mutableState.value is RecordUiState.Analyzing ||
+            stopping
         ) {
             return
         }
@@ -104,151 +128,321 @@ internal class RecordViewModel(
         discardRetainedAudio()
         try {
             recorder.start()
-        } catch (error: Throwable) {
+        } catch (_: Throwable) {
             mutableState.value = RecordUiState.Error(
-                error.message ?: context.getString(R.string.error_recording_start)
+                messageRes = R.string.error_recording_start,
             )
             return
         }
 
+        captureActive = true
+        capturedSamples = 0L
+        latestSpeechSeconds = 0.0
+        resetVadWindow()
+        val channel = Channel<VadWindow>(Channel.UNLIMITED)
+        vadChannel = channel
+        vadJob = startVadJob(channel)
         val amplitudes = mutableListOf(0f)
-        mutableState.value = RecordUiState.Recording(0f, amplitudes)
-        timerJob?.cancel()
-        timerJob = viewModelScope.launch {
-            val startedAt = SystemClock.elapsedRealtime()
-            while (isActive && mutableState.value is RecordUiState.Recording) {
-                delay(TIMER_INTERVAL_MS)
-                val elapsed = (SystemClock.elapsedRealtime() - startedAt) / 1000f
-                val previousAmplitude = amplitudes.lastOrNull() ?: 0f
-                val nextAmplitude = recorder.currentAmplitude()
-                amplitudes += previousAmplitude * 0.45f + nextAmplitude * 0.55f
-                mutableState.value = RecordUiState.Recording(
-                    elapsedSeconds = elapsed.coerceAtMost(MAX_RECORDING_SECONDS),
-                    amplitudes = amplitudes.toList(),
-                )
-                if (elapsed >= MAX_RECORDING_SECONDS) {
-                    stopAndAnalyze()
-                    return@launch
+        mutableState.value = RecordUiState.Recording(
+            elapsedSeconds = 0f,
+            speechSeconds = 0f,
+            amplitudes = amplitudes,
+        )
+        captureJob?.cancel()
+        captureJob = viewModelScope.launch(Dispatchers.IO) {
+            val pcm = ShortArray(AudioRecorder.CAPTURE_BUFFER_SAMPLES)
+            try {
+                while (isActive && captureActive) {
+                    val count = recorder.readAndWrite(pcm)
+                    if (count <= 0) {
+                        if (!captureActive) break
+                        throw IllegalStateException(
+                            context.getString(R.string.error_recording_failed),
+                        )
+                    }
+                    ingestCapturedAudio(pcm, count, amplitudes)
+                    if (capturedSamples / AudioRecorder.SAMPLE_RATE.toDouble() >=
+                        MAX_RECORDING_SECONDS
+                    ) {
+                        captureActive = false
+                        viewModelScope.launch(Dispatchers.Main.immediate) {
+                            stopAndAnalyze()
+                        }
+                        break
+                    }
                 }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                if (captureActive) handleCaptureFailure(error)
             }
         }
     }
 
     fun stopAndAnalyze() {
-        val recording = mutableState.value as? RecordUiState.Recording ?: return
-
-        timerJob?.cancel()
-        timerJob = null
-        val file = try {
-            recorder.stop()
-        } catch (error: Throwable) {
-            mutableState.value = RecordUiState.Error(error.message ?: context.getString(R.string.error_recording_failed))
-            return
-        }
-
-        if (recording.elapsedSeconds < MINIMUM_RECORDING_SECONDS) {
-            file.delete()
-            mutableState.value = RecordUiState.Error(context.getString(R.string.error_recording_duration_short))
-            return
-        }
-
-        mutableState.value = RecordUiState.Analyzing(PitcheePhase.LOADING_AUDIO)
+        if (mutableState.value !is RecordUiState.Recording || stopping) return
+        stopping = true
+        captureActive = false
+        recorder.stopCapture()
         viewModelScope.launch {
-            var recordedAudio: RecordedAudio? = null
+            var file: File? = null
             try {
-                val pcm = repository.decode(Uri.fromFile(file), maxSeconds = null) { phase ->
-                    mutableState.value = RecordUiState.Analyzing(phase)
-                }
-                recordedAudio = RecordedAudio.from(file, pcm).also {
-                    retainedAudio = it
-                }
-                mutableState.value = RecordUiState.Analyzing(
-                    phase = PitcheePhase.PREPARING_MODELS,
-                    audio = recordedAudio,
-                )
-                val scoreProfile = voicePreferences.preference().toScoreProfile()
-                val result = repository.analyzePcm(
-                    samples = pcm.samples,
-                    sampleRate = pcm.sampleRate,
-                    channels = pcm.channels,
-                    scoreProfile = scoreProfile,
-                    onProgress = { progress ->
-                        mutableState.value = RecordUiState.Analyzing(
-                            phase = progress.stage.toPhase(),
-                            progress = progress,
-                            audio = recordedAudio,
-                        )
-                    },
-                )
-                if (!result.hasSpeechSecondsAtLeast(MINIMUM_SPEECH_SECONDS)) {
-                    recordedAudio.file.delete()
-                    retainedAudio = null
+                captureJob?.join()
+                captureJob = null
+                enqueueVadSnapshot(force = true)
+                vadChannel?.close()
+                vadChannel = null
+                vadJob?.join()
+                vadJob = null
+
+                val finishedFile = recorder.finish()
+                file = finishedFile
+                val elapsedSeconds = capturedSamples / AudioRecorder.SAMPLE_RATE.toDouble()
+                if (elapsedSeconds < MINIMUM_RECORDING_SECONDS ||
+                    latestSpeechSeconds < MINIMUM_SPEECH_SECONDS
+                ) {
+                    finishedFile.delete()
+                    file = null
                     mutableState.value = RecordUiState.Error(
-                        message = context.getString(R.string.error_speech_duration_short)
+                        messageRes = R.string.error_speech_duration_short,
                     )
-                } else {
-                    val previousScore = lastResultScore.takeIf { lastResultProfile == scoreProfile }
-                    val previousMetrics = lastResultMetrics
-                    val segmentScores = scoreSpeechSegments(result)
-                    val currentMetrics = PreviousMetrics(
-                        standardScore = result.vfp.standardScore,
-                        naturalnessScore = result.naturalness.score,
-                        meanF0Hz = result.f0.meanHz,
-                    )
-                    lastResultScore = result.composite.finalScore
-                    lastResultProfile = scoreProfile
-                    lastResultMetrics = currentMetrics
-                    historyStore.addAnalysis(
-                        entry = AnalysisHistoryEntry(
-                            timestampMillis = System.currentTimeMillis(),
-                            finalScore = result.composite.finalScore,
-                            standardScore = currentMetrics.standardScore,
-                            naturalnessScore = currentMetrics.naturalnessScore,
-                            meanF0Hz = currentMetrics.meanF0Hz,
-                            f0VariationHz = result.f0.standardDeviationHz,
-                            inputSeconds = recordedAudio.durationSeconds,
-                            scoreProfile = scoreProfile.jsonValue,
-                        ),
-                        result = result,
-                        sourceAudio = recordedAudio.file,
-                    )
-                    scoreHistory.edit()
-                        .putFloat(KEY_LAST_RESULT_SCORE, result.composite.finalScore.toFloat())
-                        .putFloat(KEY_LAST_STANDARD_SCORE, currentMetrics.standardScore.toFloat())
-                        .putFloat(
-                            KEY_LAST_NATURALNESS_SCORE,
-                            currentMetrics.naturalnessScore.toFloat(),
-                        )
-                        .putFloat(
-                            KEY_LAST_MEAN_F0_HZ,
-                            currentMetrics.meanF0Hz?.toFloat() ?: NO_PREVIOUS_F0,
-                        )
-                        .putString(KEY_LAST_SCORE_PROFILE, scoreProfile.jsonValue)
-                        .apply()
-                    mutableState.value = RecordUiState.Success(
-                        result = result,
-                        audio = recordedAudio,
-                        previousScore = previousScore,
-                        previousMetrics = previousMetrics,
-                        segmentScores = segmentScores,
-                        scoreAnimationToken = ++resultSequence,
-                    )
+                    return@launch
                 }
+
+                mutableState.value = RecordUiState.Analyzing(PitcheePhase.LOADING_AUDIO)
+                analyzeRecordedFile(finishedFile)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                val audio = recordedAudio
-                if (audio == null) file.delete()
+                recorder.cancel()
+                file?.delete()
                 mutableState.value = RecordUiState.Error(
-                    message = error.message ?: context.getString(R.string.error_analysis_failed),
-                    audio = audio,
+                    message = error.message,
+                    messageRes = R.string.error_recording_failed,
                 )
+            } finally {
+                stopping = false
             }
         }
     }
 
+    private suspend fun analyzeRecordedFile(file: File) {
+        var recordedAudio: RecordedAudio? = null
+        try {
+            val pcm = repository.decode(Uri.fromFile(file), maxSeconds = null) { phase ->
+                mutableState.value = RecordUiState.Analyzing(phase)
+            }
+            recordedAudio = RecordedAudio.from(file, pcm).also {
+                retainedAudio = it
+            }
+            mutableState.value = RecordUiState.Analyzing(
+                phase = PitcheePhase.PREPARING_MODELS,
+                audio = recordedAudio,
+            )
+            val scoreProfile = voicePreferences.preference().toScoreProfile()
+            val result = repository.analyzePcm(
+                samples = pcm.samples,
+                sampleRate = pcm.sampleRate,
+                channels = pcm.channels,
+                scoreProfile = scoreProfile,
+                onProgress = { progress ->
+                    mutableState.value = RecordUiState.Analyzing(
+                        phase = progress.stage.toPhase(),
+                        progress = progress,
+                        audio = recordedAudio,
+                    )
+                },
+            )
+            val previousScore = lastResultScore.takeIf { lastResultProfile == scoreProfile }
+            val previousMetrics = lastResultMetrics
+            val segmentScores = scoreSpeechSegments(result)
+            val currentMetrics = PreviousMetrics(
+                standardScore = result.vfp.standardScore,
+                naturalnessScore = result.naturalness.score,
+                meanF0Hz = result.f0.meanHz,
+            )
+            lastResultScore = result.composite.finalScore
+            lastResultProfile = scoreProfile
+            lastResultMetrics = currentMetrics
+            historyStore.addAnalysis(
+                entry = AnalysisHistoryEntry(
+                    timestampMillis = System.currentTimeMillis(),
+                    finalScore = result.composite.finalScore,
+                    standardScore = currentMetrics.standardScore,
+                    naturalnessScore = currentMetrics.naturalnessScore,
+                    meanF0Hz = currentMetrics.meanF0Hz,
+                    f0VariationHz = result.f0.standardDeviationHz,
+                    inputSeconds = recordedAudio.durationSeconds,
+                    scoreProfile = scoreProfile.jsonValue,
+                ),
+                result = result,
+                sourceAudio = recordedAudio.file,
+            )
+            scoreHistory.edit()
+                .putFloat(KEY_LAST_RESULT_SCORE, result.composite.finalScore.toFloat())
+                .putFloat(KEY_LAST_STANDARD_SCORE, currentMetrics.standardScore.toFloat())
+                .putFloat(
+                    KEY_LAST_NATURALNESS_SCORE,
+                    currentMetrics.naturalnessScore.toFloat(),
+                )
+                .putFloat(
+                    KEY_LAST_MEAN_F0_HZ,
+                    currentMetrics.meanF0Hz?.toFloat() ?: NO_PREVIOUS_F0,
+                )
+                .putString(KEY_LAST_SCORE_PROFILE, scoreProfile.jsonValue)
+                .apply()
+            mutableState.value = RecordUiState.Success(
+                result = result,
+                audio = recordedAudio,
+                previousScore = previousScore,
+                previousMetrics = previousMetrics,
+                segmentScores = segmentScores,
+                scoreAnimationToken = ++resultSequence,
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            val audio = recordedAudio
+            if (audio == null) file.delete()
+            mutableState.value = RecordUiState.Error(
+                message = error.message,
+                messageRes = R.string.error_analysis_failed
+                    .takeIf { error.message.isNullOrBlank() },
+                audio = audio,
+            )
+        }
+    }
+
+    private fun startVadJob(channel: Channel<VadWindow>): Job =
+        viewModelScope.launch(Dispatchers.Default) {
+            val tracker = SpeechIntervalTracker()
+            for (window in channel) {
+                val segments = try {
+                    repository.detectVad(
+                        samples = window.samples,
+                        sampleRate = AudioRecorder.SAMPLE_RATE,
+                        channels = 1,
+                    )
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
+                    Log.w(TAG, "Incremental VAD failed", error)
+                    continue
+                }
+                val windowStart = window.startSample.toDouble() /
+                    AudioRecorder.SAMPLE_RATE
+                var speechSeconds = tracker.totalSeconds
+                segments.forEach { segment ->
+                    speechSeconds = tracker.add(
+                        startSeconds = windowStart + segment.startSeconds,
+                        endSeconds = windowStart + segment.endSeconds,
+                    )
+                }
+                latestSpeechSeconds = speechSeconds
+                mutableState.update { current ->
+                    if (current is RecordUiState.Recording) {
+                        current.copy(speechSeconds = speechSeconds.toFloat())
+                    } else {
+                        current
+                    }
+                }
+            }
+        }
+
+    private fun ingestCapturedAudio(
+        pcm: ShortArray,
+        count: Int,
+        amplitudes: MutableList<Float>,
+    ) {
+        var peak = 0f
+        for (index in 0 until count) {
+            val sample = pcm[index] / 32768f
+            val absolute = abs(sample)
+            if (absolute > peak) peak = absolute
+            vadRollingSamples[vadRollingWriteIndex] = sample
+            vadRollingWriteIndex = (vadRollingWriteIndex + 1) % vadRollingSamples.size
+            if (vadRollingCount < vadRollingSamples.size) vadRollingCount++
+        }
+        capturedSamples += count
+        samplesSinceLastVad += count
+        while (samplesSinceLastVad >= VAD_STEP_SAMPLES) {
+            enqueueVadSnapshot(force = false)
+            samplesSinceLastVad -= VAD_STEP_SAMPLES
+        }
+
+        val amplitude = sqrt(peak)
+        val previousAmplitude = amplitudes.lastOrNull() ?: 0f
+        amplitudes += previousAmplitude * 0.45f + amplitude * 0.55f
+        val elapsedSeconds = (
+            capturedSamples / AudioRecorder.SAMPLE_RATE.toDouble()
+            ).toFloat().coerceAtMost(MAX_RECORDING_SECONDS)
+        val snapshot = amplitudes.toList()
+        mutableState.update { current ->
+            if (current is RecordUiState.Recording) {
+                current.copy(
+                    elapsedSeconds = elapsedSeconds,
+                    speechSeconds = latestSpeechSeconds.toFloat(),
+                    amplitudes = snapshot,
+                )
+            } else {
+                current
+            }
+        }
+    }
+
+    private fun enqueueVadSnapshot(force: Boolean) {
+        if (vadRollingCount == 0) return
+        if (!force && samplesSinceLastVad < VAD_STEP_SAMPLES) return
+        val samples = FloatArray(vadRollingCount)
+        val first = (
+            vadRollingWriteIndex - vadRollingCount + vadRollingSamples.size
+            ) % vadRollingSamples.size
+        for (index in samples.indices) {
+            samples[index] = vadRollingSamples[
+                (first + index) % vadRollingSamples.size
+            ]
+        }
+        val endSample = capturedSamples
+        vadChannel?.trySend(
+            VadWindow(
+                samples = samples,
+                startSample = endSample - vadRollingCount,
+            ),
+        )
+    }
+
+    private fun resetVadWindow() {
+        vadRollingSamples.fill(0f)
+        vadRollingWriteIndex = 0
+        vadRollingCount = 0
+        samplesSinceLastVad = 0
+    }
+
+    private fun handleCaptureFailure(error: Throwable) {
+        captureActive = false
+        recorder.stopCapture()
+        recorder.cancel()
+        vadChannel?.close()
+        vadChannel = null
+        vadJob?.cancel()
+        vadJob = null
+        mutableState.value = RecordUiState.Error(
+            message = error.message,
+            messageRes = R.string.error_recording_failed,
+        )
+    }
+
     fun reset() {
         if (mutableState.value is RecordUiState.Analyzing) return
+        captureActive = false
+        recorder.stopCapture()
+        captureJob?.cancel()
+        captureJob = null
+        vadChannel?.close()
+        vadChannel = null
+        vadJob?.cancel()
+        vadJob = null
+        recorder.cancel()
         discardRetainedAudio()
         mutableState.value = RecordUiState.Ready
     }
@@ -260,7 +454,11 @@ internal class RecordViewModel(
     }
 
     override fun onCleared() {
-        timerJob?.cancel()
+        captureActive = false
+        recorder.stopCapture()
+        captureJob?.cancel()
+        vadChannel?.close()
+        vadJob?.cancel()
         recorder.cancel()
         discardRetainedAudio()
         repository.close()
@@ -269,14 +467,6 @@ internal class RecordViewModel(
     private fun discardRetainedAudio() {
         retainedAudio?.file?.delete()
         retainedAudio = null
-    }
-
-    private fun PitcheeProgressStage.toPhase(): PitcheePhase = when (this) {
-        PitcheeProgressStage.LOADING_AUDIO,
-        PitcheeProgressStage.RESAMPLING_AUDIO,
-        -> PitcheePhase.LOADING_AUDIO
-        PitcheeProgressStage.COMPLETED -> PitcheePhase.COMPLETED
-        else -> PitcheePhase.ANALYZING
     }
 
     private fun SharedPreferences.readPreviousMetrics(): PreviousMetrics? {
@@ -298,10 +488,16 @@ internal class RecordViewModel(
     }
 
     companion object {
-        const val MAX_RECORDING_SECONDS = 20f
+        const val MAX_RECORDING_SECONDS = 60f
         const val MINIMUM_SPEECH_SECONDS = 5.0
         private const val MINIMUM_RECORDING_SECONDS = 5f
-        private const val TIMER_INTERVAL_MS = 16L
+        private const val VAD_UPDATE_MILLIS = 300
+        private const val VAD_WINDOW_SECONDS = 0.9
+        private const val VAD_STEP_SAMPLES =
+            AudioRecorder.SAMPLE_RATE * VAD_UPDATE_MILLIS / 1_000
+        private val VAD_WINDOW_SAMPLES =
+            (AudioRecorder.SAMPLE_RATE * VAD_WINDOW_SECONDS).toInt()
+        private const val TAG = "PitcheeIncrementalVad"
         private const val SCORE_HISTORY_NAME = "score_history"
         private const val KEY_LAST_RESULT_SCORE = "last_result_score"
         private const val KEY_LAST_STANDARD_SCORE = "last_standard_score"
@@ -329,3 +525,8 @@ internal class RecordViewModel(
         }
     }
 }
+
+private data class VadWindow(
+    val samples: FloatArray,
+    val startSample: Long,
+)

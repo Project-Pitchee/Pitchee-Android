@@ -8,8 +8,8 @@ import org.junit.Test
 
 class ReadingPassagesTest {
     @Test
-    fun includesElevenLocalizedPassages() {
-        assertEquals(11, readingPassages.size)
+    fun includesSixLocalizedPassages() {
+        assertEquals(6, readingPassages.size)
         assertTrue(
             readingPassages.all {
                 it.titleRes == R.array.reading_passage_titles &&
