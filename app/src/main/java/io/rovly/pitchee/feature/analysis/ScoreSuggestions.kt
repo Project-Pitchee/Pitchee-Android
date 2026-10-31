@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -28,6 +29,7 @@ import io.rovly.pitchee.data.model.PitcheeResult
 import io.rovly.pitchee.feature.knowledge.KnowledgeArticleKey
 import io.rovly.pitchee.feature.knowledge.KnowledgeArticleLoader
 import io.rovly.pitchee.feature.knowledge.KnowledgeBaseCatalog
+import io.rovly.pitchee.feature.knowledge.KnowledgeContentLanguage
 
 @Composable
 internal fun ScoreSuggestionsSection(
@@ -36,6 +38,10 @@ internal fun ScoreSuggestionsSection(
     onOpenKnowledgeBase: () -> Unit,
 ) {
     val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
+    val articleLanguage = remember(locale) {
+        KnowledgeContentLanguage.fromLanguageCode(locale.language)
+    }
     val articleKey = remember(
         result.scoreProfile,
         result.composite.rule,
@@ -47,9 +53,9 @@ internal fun ScoreSuggestionsSection(
             result.composite.finalScore,
         )
     }
-    val article = remember(articleKey) {
+    val article = remember(articleKey, articleLanguage) {
         articleKey?.let {
-            KnowledgeArticleLoader.load(context.applicationContext, it)
+            KnowledgeArticleLoader.load(context.applicationContext, it, articleLanguage)
         }
     }
 

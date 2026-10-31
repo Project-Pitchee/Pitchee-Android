@@ -519,22 +519,21 @@
     <string name="settings_author_ryo_url">https://github.com/RyouDYFZ</string>
     <string name="settings_license_material_icons">Material Symbols（Apache-2.0）</string>
     <string name="settings_license_pitchee_articles">Pitchee Articles（GPL-3.0-only）</string>
-    <string name="onboarding_welcome_title">用声音，
-更了解自己</string>
-    <string name="onboarding_welcome_subtitle">Pitchee 会把声音变成清晰、可追踪的反馈，陪你记录每一次变化。</string>
+    <string name="onboarding_welcome_title">有反馈才能进步</string>
+    <string name="onboarding_welcome_subtitle">Pitchee 内置多种声音性向测评功能。我们通过使用跨性别语料训练过的模型，从音色/自然度/音高指标给予你准确的反馈。</string>
     <string name="onboarding_welcome_feature_trend_title">看见声音的变化</string>
     <string name="onboarding_welcome_feature_trend_description">用数据和趋势，了解你的声音状态。</string>
     <string name="onboarding_welcome_feature_privacy_title">你的声音由你掌控</string>
     <string name="onboarding_welcome_feature_privacy_description">在设备上分析，录音不会上传。</string>
     <string name="onboarding_welcome_badge">声音分析</string>
     <string name="onboarding_preferences_title">让我们更加了解你</string>
-    <string name="onboarding_preferences_subtitle">选择一个想探索的方向。之后随时都能调整。</string>
+    <string name="onboarding_preferences_subtitle">选择一个想探索的方向，之后随时都能调整。</string>
     <string name="onboarding_preferences_prompt">你希望什么样的声音？</string>
     <string name="onboarding_start_setup">开始设置</string>
     <string name="onboarding_finish_setup">完成设置</string>
     <string name="voice_profile_feminine_title">女性向声音</string>
     <string name="voice_profile_feminine_description">探索更明亮、柔和的声音</string>
-    <string name="voice_profile_masculine_title">男性向声音</string>
+    <string name="voice_profile_masculine_title">男性向声音(Beta)</string>
     <string name="voice_profile_masculine_description">探索更低沉、厚实的声音</string>
     <string name="settings_voice_goal">声音目标</string>
     <string name="settings_voice_goal_feminine_desc">更高的音高与更明亮的音色</string>

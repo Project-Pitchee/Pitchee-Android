@@ -16,4 +16,4 @@
 
 后续目标为进入 60分，提高音色/自然度中的弱项。
 
-相关阅读：[音色分低怎么练](../practice/01-vfp.md)、[自然度低怎么练](../practice/02-naturalness.md)。
+相关阅读：[音色分低怎么练](../../practice/zh_cn/01-vfp.md)、[自然度低怎么练](../../practice/zh_cn/02-naturalness.md)。

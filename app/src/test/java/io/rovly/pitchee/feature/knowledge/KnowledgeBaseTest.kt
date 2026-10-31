@@ -103,13 +103,64 @@ class KnowledgeBaseTest {
     fun resolvesRelatedReadingLinksToLocalArticles() {
         assertEquals(
             KnowledgeArticleKey.NATURALNESS_GUIDE,
-            KnowledgeBaseCatalog.fromArticleLink("../practice/02-naturalness.md"),
+            KnowledgeBaseCatalog.fromArticleLink(
+                "../../practice/zh_cn/02-naturalness.md",
+            ),
         )
         assertEquals(
             KnowledgeArticleKey.CONTINUOUS_PASS,
             KnowledgeBaseCatalog.fromArticleLink(
-                "../rules/02-feminization-continuous-pass.md",
+                "../../rules/en/02-feminization-continuous-pass.md",
             ),
         )
+    }
+
+    @Test
+    fun selectsArticleLanguageFromTheAppLocale() {
+        assertEquals(
+            KnowledgeContentLanguage.CHINESE,
+            KnowledgeContentLanguage.fromLanguageCode("zh"),
+        )
+        assertEquals(
+            KnowledgeContentLanguage.CHINESE,
+            KnowledgeContentLanguage.fromLanguageCode("zh-Hant"),
+        )
+        assertEquals(
+            KnowledgeContentLanguage.ENGLISH,
+            KnowledgeContentLanguage.fromLanguageCode("ja"),
+        )
+        assertEquals(
+            "knowledge/rules/03-pass-boost.md",
+            KnowledgeArticleKey.PASS_BOOST.assetPath(KnowledgeContentLanguage.CHINESE),
+        )
+        assertEquals(
+            "knowledge/en/rules/03-pass-boost.md",
+            KnowledgeArticleKey.PASS_BOOST.assetPath(KnowledgeContentLanguage.ENGLISH),
+        )
+    }
+
+    @Test
+    fun parsesEnglishRelatedReading() {
+        val article = parseKnowledgeMarkdown(
+            KnowledgeArticleKey.HIGH_F0_TIMBRE,
+            """
+                # High Pitch and Low Timbre Score
+
+                Body text.
+
+                Related reading: [Low timbre score](../../practice/en/01-vfp.md).
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            listOf(
+                RelatedKnowledgeArticle(
+                    "Low timbre score",
+                    KnowledgeArticleKey.TIMBRE_GUIDE,
+                ),
+            ),
+            article.relatedArticles,
+        )
+        assertTrue(!article.markdownBody.contains("Related reading"))
     }
 }

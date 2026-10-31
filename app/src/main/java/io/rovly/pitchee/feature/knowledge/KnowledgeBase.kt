@@ -15,48 +15,61 @@ internal enum class KnowledgeCategory(
 
 internal enum class KnowledgeArticleKey(
     val category: KnowledgeCategory,
-    val assetPath: String,
+    val relativePath: String,
 ) {
     CONTINUOUS_NO_PASS(
         KnowledgeCategory.RULES,
-        "knowledge/rules/01-feminization-continuous-nopass.md",
+        "rules/01-feminization-continuous-nopass.md",
     ),
     CONTINUOUS_PASS(
         KnowledgeCategory.RULES,
-        "knowledge/rules/02-feminization-continuous-pass.md",
+        "rules/02-feminization-continuous-pass.md",
     ),
     PASS_BOOST(
         KnowledgeCategory.RULES,
-        "knowledge/rules/03-pass-boost.md",
+        "rules/03-pass-boost.md",
     ),
     HIGH_F0_STYLIZED(
         KnowledgeCategory.RULES,
-        "knowledge/rules/04-high-f0-stylized-cap.md",
+        "rules/04-high-f0-stylized-cap.md",
     ),
     LOW_F0_NATURAL(
         KnowledgeCategory.RULES,
-        "knowledge/rules/05-low-f0-natural-cap.md",
+        "rules/05-low-f0-natural-cap.md",
     ),
     LOW_F0_STYLIZED(
         KnowledgeCategory.RULES,
-        "knowledge/rules/06-low-f0-stylized-cap.md",
+        "rules/06-low-f0-stylized-cap.md",
     ),
     HIGH_F0_TIMBRE(
         KnowledgeCategory.RULES,
-        "knowledge/rules/07-high-f0-male-cap.md",
+        "rules/07-high-f0-male-cap.md",
     ),
     TIMBRE_GUIDE(
         KnowledgeCategory.PRACTICE,
-        "knowledge/practice/01-vfp.md",
+        "practice/01-vfp.md",
     ),
     NATURALNESS_GUIDE(
         KnowledgeCategory.PRACTICE,
-        "knowledge/practice/02-naturalness.md",
+        "practice/02-naturalness.md",
     ),
     PITCH_GUIDE(
         KnowledgeCategory.PRACTICE,
-        "knowledge/practice/03-low-f0.md",
+        "practice/03-low-f0.md",
     ),
+}
+
+internal enum class KnowledgeContentLanguage(
+    val assetFolder: String?,
+) {
+    CHINESE(null),
+    ENGLISH("en"),
+    ;
+
+    companion object {
+        fun fromLanguageCode(languageCode: String): KnowledgeContentLanguage =
+            if (languageCode.startsWith("zh", ignoreCase = true)) CHINESE else ENGLISH
+    }
 }
 
 internal data class KnowledgeArticle(
@@ -105,40 +118,51 @@ internal object KnowledgeBaseCatalog {
         ScoreMetric.F0 -> KnowledgeArticleKey.PITCH_GUIDE
     }
 
-    fun sourceUrl(key: KnowledgeArticleKey): String =
-        "https://github.com/Project-Pitchee/Articles/blob/main/" +
-            key.assetPath.removePrefix("knowledge/")
-
     fun fromArticleLink(link: String): KnowledgeArticleKey? {
         val normalized = link
             .substringBefore('#')
             .substringBefore('?')
             .removePrefix("./")
             .removePrefix("../")
-        return all.firstOrNull {
-            it.assetPath.removePrefix("knowledge/") == normalized
-        }
+            .removePrefix("../")
+        val parts = normalized.split('/').filter { it.isNotBlank() }
+        if (parts.size < 2) return null
+        val category = parts.first()
+        val fileName = parts.last()
+        return all.firstOrNull { it.relativePath == "$category/$fileName" }
     }
 }
 
 internal object KnowledgeArticleLoader {
-    private val cache = mutableMapOf<KnowledgeArticleKey, KnowledgeArticle>()
+    private val cache = mutableMapOf<Pair<KnowledgeArticleKey, KnowledgeContentLanguage>, KnowledgeArticle>()
 
     @Synchronized
     fun load(
         context: Context,
         key: KnowledgeArticleKey,
+        language: KnowledgeContentLanguage,
     ): KnowledgeArticle? {
-        cache[key]?.let { return it }
+        val cacheKey = key to language
+        cache[cacheKey]?.let { return it }
         return runCatching {
             val markdown = context.assets
-                .open(key.assetPath)
+                .open(key.assetPath(language))
                 .bufferedReader()
                 .use { it.readText() }
-            parseKnowledgeMarkdown(key, markdown).also { cache[key] = it }
+            parseKnowledgeMarkdown(key, markdown).also { cache[cacheKey] = it }
         }.getOrNull()
     }
 }
+
+internal fun KnowledgeArticleKey.assetPath(language: KnowledgeContentLanguage): String =
+    buildString {
+        append("knowledge/")
+        language.assetFolder?.let {
+            append(it)
+            append('/')
+        }
+        append(relativePath)
+    }
 
 internal fun parseKnowledgeMarkdown(
     key: KnowledgeArticleKey,
@@ -159,7 +183,9 @@ internal fun parseKnowledgeMarkdown(
     }
     val relatedArticles = mutableListOf<RelatedKnowledgeArticle>()
     val contentLines = bodyLines.filterNot { line ->
-        if (!line.contains("相关阅读")) return@filterNot false
+        val isRelatedReadingLine = line.contains("相关阅读") ||
+            line.contains("Related reading", ignoreCase = true)
+        if (!isRelatedReadingLine) return@filterNot false
         RELATED_LINK_PATTERN.findAll(line).forEach { match ->
             val label = match.groupValues[1]
             val keyForLink = KnowledgeBaseCatalog.fromArticleLink(match.groupValues[2])

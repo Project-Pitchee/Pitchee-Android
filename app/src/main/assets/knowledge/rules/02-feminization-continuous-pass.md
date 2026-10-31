@@ -24,4 +24,4 @@ But gal, you can do better than that.
 
 加分取决于三项中最弱的一项，单靠音高特别高无法带动整体，因此现阶段应重点提高自然度和音色分。
 
-相关阅读：[音色分低怎么练](../practice/01-vfp.md)、[自然度低怎么练](../practice/02-naturalness.md)。
+相关阅读：[音色分低怎么练](../../practice/zh_cn/01-vfp.md)、[自然度低怎么练](../../practice/zh_cn/02-naturalness.md)。

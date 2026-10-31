@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
@@ -203,8 +204,12 @@ private fun KnowledgeArticleRow(
     onClick: () -> Unit,
 ) {
     val context = LocalContext.current
-    val article = remember(articleKey) {
-        KnowledgeArticleLoader.load(context.applicationContext, articleKey)
+    val locale = LocalConfiguration.current.locales[0]
+    val articleLanguage = remember(locale) {
+        KnowledgeContentLanguage.fromLanguageCode(locale.language)
+    }
+    val article = remember(articleKey, articleLanguage) {
+        KnowledgeArticleLoader.load(context.applicationContext, articleKey, articleLanguage)
     }
     Surface(
         onClick = onClick,
@@ -251,8 +256,12 @@ private fun KnowledgeArticlePage(
     onOpenArticle: (KnowledgeArticleKey) -> Unit,
 ) {
     val context = LocalContext.current
-    val article = remember(articleKey) {
-        KnowledgeArticleLoader.load(context.applicationContext, articleKey)
+    val locale = LocalConfiguration.current.locales[0]
+    val articleLanguage = remember(locale) {
+        KnowledgeContentLanguage.fromLanguageCode(locale.language)
+    }
+    val article = remember(articleKey, articleLanguage) {
+        KnowledgeArticleLoader.load(context.applicationContext, articleKey, articleLanguage)
     }
     Surface(
         modifier = Modifier.fillMaxSize(),

@@ -1286,13 +1286,16 @@ private fun MetricsCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         text = stringResource(R.string.score_metrics_toggle),
+                        modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Button(
                         onClick = {},
@@ -1305,6 +1308,8 @@ private fun MetricsCard(
                         Text(
                             text = stringResource(R.string.score_compare),
                             fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
                         )
                     }
                 }
