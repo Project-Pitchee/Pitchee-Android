@@ -1,10 +1,18 @@
 # Pitchee Android
 
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/Project-Pitchee/Pitchee-Android?style=for-the-badge&amp;color=D96A3E&amp;labelColor=111827" alt="Latest release">
+  <img src="https://img.shields.io/github/downloads/Project-Pitchee/Pitchee-Android/total?style=for-the-badge&amp;color=4A5AAE&amp;labelColor=111827" alt="Downloads">
+  <img src="https://img.shields.io/github/stars/Project-Pitchee/Pitchee-Android?style=for-the-badge&amp;logo=github&amp;color=6495ED&amp;labelColor=111827" alt="Stars">
+  <img src="https://img.shields.io/github/license/Project-Pitchee/Pitchee-Android?style=for-the-badge&amp;color=2F8F5B&amp;labelColor=111827" alt="License">
+</p>
+
 Pitchee 是一款面向跨性别者的语音训练应用，用于分析声音、观察音高，并长期记录自己的变化。
 
 与主要依据音高判断声音性别表达的 Voice Tools 不同，Pitchee 同时分析音高、音色（共鸣）与自然度（是否夹嗓或压嗓），并长期记录声音变化。
 
 ![Pitchee 功能总览](docs/images/pitchee-feature-overview.jpg)
+
 
 ## 下载
 
@@ -51,6 +59,26 @@ Pitchee 是一款面向跨性别者的语音训练应用，用于分析声音、
 ### 日历
 
 查看并打开之前的声音测评记录；有音频的记录可以直接回放。
+
+## 界面预览
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/screens/analysis-result.png" width="260" alt="声音分析"><br>声音分析</td>
+    <td align="center"><img src="docs/images/screens/pitch.png" width="260" alt="实时音高"><br>实时音高</td>
+    <td align="center"><img src="docs/images/screens/spectrum.png" width="260" alt="频谱"><br>频谱</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/screens/dashboard.png" width="260" alt="仪表盘"><br>仪表盘</td>
+    <td align="center"><img src="docs/images/screens/activity.png" width="260" alt="活动记录"><br>活动记录</td>
+    <td align="center"><img src="docs/images/screens/piano.png" width="260" alt="钢琴键"><br>钢琴键</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/screens/voice-health.png" width="260" alt="声音健康"><br>声音健康</td>
+    <td align="center"><img src="docs/images/screens/voice-library.png" width="260" alt="声音知识库"><br>声音知识库</td>
+    <td align="center"><img src="docs/images/screens/settings.png" width="260" alt="设置"><br>设置</td>
+  </tr>
+</table>
 
 ## 模型训练
 
