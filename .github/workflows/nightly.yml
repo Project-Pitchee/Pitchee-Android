@@ -17,53 +17,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check for changes
-        id: changes
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          latest_tag="$(curl -fsSL -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$GITHUB_REPOSITORY/releases?per_page=30" | jq -r '[.[] | select(.draft == false)][0].tag_name // empty')"
-          if [ -z "$latest_tag" ]; then
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          remote_sha="$(git ls-remote origin "refs/tags/$latest_tag^{}" | awk '{print $1}')"
-          if [ -z "$remote_sha" ]; then
-            remote_sha="$(git ls-remote origin "refs/tags/$latest_tag" | awk '{print $1}')"
-          fi
-          head_sha="$(git rev-parse HEAD)"
-
-          if [ "$remote_sha" = "$head_sha" ]; then
-            echo "should_build=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Set up Java
-        if: steps.changes.outputs.should_build == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Gradle
-        if: steps.changes.outputs.should_build == 'true'
         uses: gradle/actions/setup-gradle@v4
 
       - name: Compute version
-        if: steps.changes.outputs.should_build == 'true'
         id: version
         shell: bash
         run: |
-          NAME="nightly-$(date -u +%Y%m%d-%H%M)"
-          CODE="$(date -u +%Y%m%d%H)"
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          TAG="nightly-$(date -u +%Y%m%d-%H%M)"
+          SHORT_SHA="$(git rev-parse --short=8 HEAD)"
+          VERSION_NAME="nightly-$SHORT_SHA"
+          # Keep version metadata stable for the same commit so identical
+          # builds produce identical APK hashes across nightly runs.
+          VERSION_CODE="$(git show -s --format=%ct HEAD)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "name=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
 
       - name: Prepare signing key
-        if: steps.changes.outputs.should_build == 'true'
         shell: bash
         env:
           PITCHEE_STORE_PASSWORD: ${{ secrets.PITCHEE_STORE_PASSWORD }}
@@ -76,7 +54,6 @@ jobs:
           fi
 
       - name: Build APK
-        if: steps.changes.outputs.should_build == 'true'
         id: build
         shell: bash
         env:
@@ -86,21 +63,71 @@ jobs:
         run: |
           if [ -n "$PITCHEE_KEYSTORE_PATH" ]; then
             ./gradlew assembleRelease \
-              -PversionName="${{ steps.version.outputs.name }}" \
-              -PversionCode="${{ steps.version.outputs.code }}"
-            echo "apk_dir=app/build/outputs/apk/release" >> "$GITHUB_OUTPUT"
+              -PversionName="${{ steps.version.outputs.version_name }}" \
+              -PversionCode="${{ steps.version.outputs.version_code }}"
+            APK_DIR="app/build/outputs/apk/release"
           else
             ./gradlew assembleDebug \
-              -PversionName="${{ steps.version.outputs.name }}" \
-              -PversionCode="${{ steps.version.outputs.code }}"
-            echo "apk_dir=app/build/outputs/apk/debug" >> "$GITHUB_OUTPUT"
+              -PversionName="${{ steps.version.outputs.version_name }}" \
+              -PversionCode="${{ steps.version.outputs.version_code }}"
+            APK_DIR="app/build/outputs/apk/debug"
+          fi
+          COMPARE_APK="$(find "$APK_DIR" -maxdepth 1 -type f -name 'app-universal-*.apk' -print -quit)"
+          test -n "$COMPARE_APK"
+          echo "apk_dir=$APK_DIR" >> "$GITHUB_OUTPUT"
+          echo "compare_apk=$COMPARE_APK" >> "$GITHUB_OUTPUT"
+
+      - name: Compare APK with previous nightly
+        id: compare
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NEW_HASH="$(sha256sum "${{ steps.build.outputs.compare_apk }}" | awk '{print $1}')"
+
+          PREVIOUS_TAG="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.prerelease == true and (.tag_name | startswith("nightly-"))) | [.published_at, .tag_name] | @tsv' | sort -r | head -1 | cut -f2)"
+          PREVIOUS_HASH=""
+          if [ -n "$PREVIOUS_TAG" ]; then
+            mkdir -p previous-nightly
+            gh release download "$PREVIOUS_TAG" \
+              --pattern '*universal*.apk' \
+              --dir previous-nightly \
+              --clobber || true
+            PREVIOUS_APK="$(find previous-nightly -maxdepth 1 -type f -name '*universal*.apk' -print -quit)"
+            if [ -n "$PREVIOUS_APK" ]; then
+              PREVIOUS_HASH="$(sha256sum "$PREVIOUS_APK" | awk '{print $1}')"
+            fi
           fi
 
+          if [ -n "$PREVIOUS_HASH" ] && [ "$NEW_HASH" = "$PREVIOUS_HASH" ]; then
+            SHOULD_PUBLISH=false
+          else
+            SHOULD_PUBLISH=true
+          fi
+
+          echo "previous_tag=$PREVIOUS_TAG" >> "$GITHUB_OUTPUT"
+          echo "previous_hash=$PREVIOUS_HASH" >> "$GITHUB_OUTPUT"
+          echo "new_hash=$NEW_HASH" >> "$GITHUB_OUTPUT"
+          echo "should_publish=$SHOULD_PUBLISH" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Nightly APK check"
+            echo ""
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| Commit | \`$(git rev-parse --short=8 HEAD)\` |"
+            echo "| New SHA-256 | \`$NEW_HASH\` |"
+            echo "| Previous nightly | ${PREVIOUS_TAG:-none} |"
+            echo "| Previous SHA-256 | \`${PREVIOUS_HASH:-none}\` |"
+            echo "| Publish | $SHOULD_PUBLISH |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Publish nightly release
-        if: steps.changes.outputs.should_build == 'true'
+        if: steps.compare.outputs.should_publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.name }}
+          tag_name: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.name }}
           prerelease: true
+          make_latest: false
           files: ${{ steps.build.outputs.apk_dir }}/*.apk
