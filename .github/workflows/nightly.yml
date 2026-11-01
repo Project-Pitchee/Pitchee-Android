@@ -1,8 +1,6 @@
 name: Nightly
 
 on:
-  schedule:
-    - cron: "0 16 * * *"
   workflow_dispatch:
 
 permissions:
@@ -72,58 +70,9 @@ jobs:
               -PversionCode="${{ steps.version.outputs.version_code }}"
             APK_DIR="app/build/outputs/apk/debug"
           fi
-          COMPARE_APK="$(find "$APK_DIR" -maxdepth 1 -type f -name 'app-universal-*.apk' -print -quit)"
-          test -n "$COMPARE_APK"
           echo "apk_dir=$APK_DIR" >> "$GITHUB_OUTPUT"
-          echo "compare_apk=$COMPARE_APK" >> "$GITHUB_OUTPUT"
-
-      - name: Compare APK with previous nightly
-        id: compare
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          NEW_HASH="$(sha256sum "${{ steps.build.outputs.compare_apk }}" | awk '{print $1}')"
-
-          PREVIOUS_TAG="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.prerelease == true and (.tag_name | startswith("nightly-"))) | [.published_at, .tag_name] | @tsv' | sort -r | head -1 | cut -f2)"
-          PREVIOUS_HASH=""
-          if [ -n "$PREVIOUS_TAG" ]; then
-            mkdir -p previous-nightly
-            gh release download "$PREVIOUS_TAG" \
-              --pattern '*universal*.apk' \
-              --dir previous-nightly \
-              --clobber || true
-            PREVIOUS_APK="$(find previous-nightly -maxdepth 1 -type f -name '*universal*.apk' -print -quit)"
-            if [ -n "$PREVIOUS_APK" ]; then
-              PREVIOUS_HASH="$(sha256sum "$PREVIOUS_APK" | awk '{print $1}')"
-            fi
-          fi
-
-          if [ -n "$PREVIOUS_HASH" ] && [ "$NEW_HASH" = "$PREVIOUS_HASH" ]; then
-            SHOULD_PUBLISH=false
-          else
-            SHOULD_PUBLISH=true
-          fi
-
-          echo "previous_tag=$PREVIOUS_TAG" >> "$GITHUB_OUTPUT"
-          echo "previous_hash=$PREVIOUS_HASH" >> "$GITHUB_OUTPUT"
-          echo "new_hash=$NEW_HASH" >> "$GITHUB_OUTPUT"
-          echo "should_publish=$SHOULD_PUBLISH" >> "$GITHUB_OUTPUT"
-
-          {
-            echo "### Nightly APK check"
-            echo ""
-            echo "| Item | Value |"
-            echo "| --- | --- |"
-            echo "| Commit | \`$(git rev-parse --short=8 HEAD)\` |"
-            echo "| New SHA-256 | \`$NEW_HASH\` |"
-            echo "| Previous nightly | ${PREVIOUS_TAG:-none} |"
-            echo "| Previous SHA-256 | \`${PREVIOUS_HASH:-none}\` |"
-            echo "| Publish | $SHOULD_PUBLISH |"
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish nightly release
-        if: steps.compare.outputs.should_publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
