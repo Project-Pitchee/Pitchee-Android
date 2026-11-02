@@ -3,5 +3,6 @@
 -keep class space.pitchee.core.PitcheeRealtimeF0 { *; }
 -keep class space.pitchee.core.PitcheeSpectrum { *; }
 -keep interface space.pitchee.core.PitcheeProgressCallback { *; }
+-keep interface space.pitchee.core.PitcheeVadCallback { *; }
 -keep interface space.pitchee.core.PitcheeF0FrameCallback { *; }
 -keep interface space.pitchee.core.PitcheeSpectrumFrameCallback { *; }
