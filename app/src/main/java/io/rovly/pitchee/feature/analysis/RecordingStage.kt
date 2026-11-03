@@ -114,8 +114,13 @@ internal fun RecordingStage(
             VoiceCaptureStage(
                 active = activeRecording != null,
                 elapsedSeconds = activeRecording?.elapsedSeconds ?: 0f,
-                speechSeconds = activeRecording?.speechSeconds ?: 0f,
-                requiredSpeechSeconds = RecordViewModel.MINIMUM_SPEECH_SECONDS.toFloat(),
+                // Drive the ring with the real recording length so the visual
+                // and the "X.X / 5.0 s" readout match the 5 s minimum gate.
+                // Incremental VAD speech seconds are still tracked in
+                // RecordUiState.Recording.speechSeconds for diagnostics, but no
+                // longer gate the analysis or drive this progress.
+                speechSeconds = activeRecording?.elapsedSeconds ?: 0f,
+                requiredSpeechSeconds = RecordViewModel.MINIMUM_RECORDING_SECONDS.toFloat(),
                 amplitudes = activeRecording?.amplitudes.orEmpty(),
                 idleTitle = stringResource(R.string.click_to_record),
                 idleSubtitle = stringResource(R.string.analysis_recording_minimum),
@@ -174,7 +179,7 @@ internal fun RecordingStage(
     val recordingProgress by animateFloatAsState(
         targetValue = recording?.let {
             (
-                it.speechSeconds / RecordViewModel.MINIMUM_SPEECH_SECONDS.toFloat()
+                it.elapsedSeconds / RecordViewModel.MINIMUM_RECORDING_SECONDS.toFloat()
                 ).coerceIn(0f, 1f)
         } ?: 0f,
         animationSpec = tween(durationMillis = 180),

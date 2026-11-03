@@ -197,14 +197,24 @@ internal class RecordViewModel(
 
                 val finishedFile = recorder.finish()
                 file = finishedFile
+                // Gate only on the real captured length (PCM samples / sample rate).
+                // `latestSpeechSeconds` is an estimate from incremental VAD over
+                // 0.9 s windows: it drops pauses and is systematically lower than
+                // the wall-clock recording, so requiring it to also reach 5 s
+                // rejected recordings that were already long enough. It stays on
+                // the UI as an advisory "valid speech" readout instead.
                 val elapsedSeconds = capturedSamples / AudioRecorder.SAMPLE_RATE.toDouble()
-                if (elapsedSeconds < MINIMUM_RECORDING_SECONDS ||
-                    latestSpeechSeconds < MINIMUM_SPEECH_SECONDS
-                ) {
+                Log.d(
+                    TAG_RECORDING,
+                    "Recording stopped: elapsed=$elapsedSeconds s, " +
+                        "vadSpeech=$latestSpeechSeconds s, " +
+                        "minimum=$MINIMUM_RECORDING_SECONDS s",
+                )
+                if (elapsedSeconds < MINIMUM_RECORDING_SECONDS) {
                     finishedFile.delete()
                     file = null
                     mutableState.value = RecordUiState.Error(
-                        messageRes = R.string.error_speech_duration_short,
+                        messageRes = R.string.error_recording_duration_short,
                     )
                     return@launch
                 }
@@ -489,8 +499,14 @@ internal class RecordViewModel(
 
     companion object {
         const val MAX_RECORDING_SECONDS = 60f
-        const val MINIMUM_SPEECH_SECONDS = 5.0
-        private const val MINIMUM_RECORDING_SECONDS = 5f
+
+        /**
+         * Minimum wall-clock recording length required to start an analysis.
+         * This is the only hard duration gate; VAD speech seconds are advisory.
+         * Kept as a Double so it matches `elapsedSeconds` without a Float/Double
+         * promotion in the comparison.
+         */
+        const val MINIMUM_RECORDING_SECONDS = 5.0
         private const val VAD_UPDATE_MILLIS = 300
         private const val VAD_WINDOW_SECONDS = 0.9
         private const val VAD_STEP_SAMPLES =
@@ -498,6 +514,7 @@ internal class RecordViewModel(
         private val VAD_WINDOW_SAMPLES =
             (AudioRecorder.SAMPLE_RATE * VAD_WINDOW_SECONDS).toInt()
         private const val TAG = "PitcheeIncrementalVad"
+        private const val TAG_RECORDING = "PitcheeRecording"
         private const val SCORE_HISTORY_NAME = "score_history"
         private const val KEY_LAST_RESULT_SCORE = "last_result_score"
         private const val KEY_LAST_STANDARD_SCORE = "last_standard_score"
