@@ -1,5 +1,7 @@
 # Pitchee Android
 
+**English** | [简体中文](README.zh-CN.md)
+
 <p align="center">
   <img src="https://img.shields.io/github/v/release/Project-Pitchee/Pitchee-Android?style=for-the-badge&amp;color=D96A3E&amp;labelColor=111827" alt="Latest release">
   <img src="https://img.shields.io/github/downloads/Project-Pitchee/Pitchee-Android/total?style=for-the-badge&amp;color=4A5AAE&amp;labelColor=111827" alt="Downloads">
@@ -7,140 +9,141 @@
   <img src="https://img.shields.io/github/license/Project-Pitchee/Pitchee-Android?style=for-the-badge&amp;color=2F8F5B&amp;labelColor=111827" alt="License">
 </p>
 
-Pitchee 是一款面向跨性别者的语音训练应用，用于分析声音、观察音高，并长期记录自己的变化。
+Pitchee is a voice-training app for transgender people. It helps you analyze your voice, track pitch, and follow changes over time.
 
-与主要依据音高判断声音性别表达的 Voice Tools 不同，Pitchee 同时分析音高、音色（共鸣）与自然度（是否夹嗓或压嗓），并长期记录声音变化。
+Unlike Voice Tools, which mostly uses pitch to infer gender expression, Pitchee analyzes pitch, timbre (resonance), and naturalness (whether the voice sounds constricted or pressed), while keeping a long-term record of how your voice changes.
 
-![Pitchee 功能总览](docs/images/pitchee-feature-overview.jpg)
+![Pitchee feature overview](docs/images/pitchee-feature-overview.jpg)
 
+## Download
 
-## 下载
+[Download the latest version (mobile)](https://github.com/project-pitchee/Pitchee-Android/releases/latest/download/app-arm64-v8a-release.apk)
 
-请前往 [GitHub Releases](https://github.com/project-pitchee/Pitchee-Android/releases)。每个版本提供三个 APK：
+Each release provides three APKs:
 
-| APK | 适用设备 |
+| APK | Device |
 | --- | --- |
-| `app-arm64-v8a-release.apk` | 普通 Android 设备 |
-| `app-x86_64-release.apk` | 模拟器 |
-| `app-universal-release.apk` | 不确定设备架构时使用 |
+| `app-arm64-v8a-release.apk` | Most Android phones |
+| `app-x86_64-release.apk` | Emulators |
+| `app-universal-release.apk` | Use this if you are unsure about your device architecture |
 
-此外，应用提供 Nightly 每日构建，你可以最先体验新版本。
+A daily Nightly build is also available for trying new versions first.
 
-## 应用功能
+## Features
 
-### 声音分析
+### Voice analysis
 
-录制一段不小于 5 秒的语音，并分析综合分、音色分、自然度和平均音高。
+Record at least 5 seconds of speech and analyze your overall score, timbre score, naturalness, and average pitch.
 
-### 声音健康
+### Voice health
 
-录制一段不小于 5 秒的语音，并分析其嘶哑程度。
+Record at least 5 seconds of speech and analyze its level of hoarseness.
 
-### 实时音高
+### Real-time pitch
 
-实时查看当前音高和最近一段时间的音高轨迹。
+See your current pitch and recent pitch contour in real time.
 
-### 频谱
+### Spectrum
 
-实时查看声音的频谱变化。
+View changes in your voice spectrum in real time.
 
-### 钢琴键
+### Piano
 
-提供男性与女性音高范围内的琴键弹奏。
+Play piano keys across masculine and feminine pitch ranges.
 
-### 仪表盘
+### Dashboard
 
-查看测评次数、活动日历、综合分、自然度、音色分和音高的变化。
+Review your assessment count, activity calendar, overall score, naturalness, timbre score, and pitch changes.
 
-### 知识库
+### Knowledge base
 
-当你的突破遇到瓶颈时，可以查找对应文章寻求帮助。由于作者专业知识有限，部分文章由 DeepSeek 辅助生成。
+Find relevant articles when your progress reaches a plateau. Because the authors' expertise is limited, some articles were produced with assistance from DeepSeek.
 
-### 日历
+### Calendar
 
-查看并打开之前的声音测评记录；有音频的记录可以直接回放。
+Browse and open previous voice assessments. Assessments with retained audio can be played back directly.
 
-## 界面预览
+## Screenshots
 
 <table>
   <tr>
-    <td align="center"><img src="docs/images/screens/analysis-result.png" width="260" alt="声音分析"><br>声音分析</td>
-    <td align="center"><img src="docs/images/screens/pitch.png" width="260" alt="实时音高"><br>实时音高</td>
-    <td align="center"><img src="docs/images/screens/spectrum.png" width="260" alt="频谱"><br>频谱</td>
+    <td align="center"><img src="docs/images/screens/analysis-result.png" width="260" alt="Voice analysis"><br>Voice analysis</td>
+    <td align="center"><img src="docs/images/screens/pitch.png" width="260" alt="Real-time pitch"><br>Real-time pitch</td>
+    <td align="center"><img src="docs/images/screens/spectrum.png" width="260" alt="Spectrum"><br>Spectrum</td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/images/screens/dashboard.png" width="260" alt="仪表盘"><br>仪表盘</td>
-    <td align="center"><img src="docs/images/screens/activity.png" width="260" alt="活动记录"><br>活动记录</td>
-    <td align="center"><img src="docs/images/screens/piano.png" width="260" alt="钢琴键"><br>钢琴键</td>
+    <td align="center"><img src="docs/images/screens/dashboard.png" width="260" alt="Dashboard"><br>Dashboard</td>
+    <td align="center"><img src="docs/images/screens/activity.png" width="260" alt="Activity"><br>Activity</td>
+    <td align="center"><img src="docs/images/screens/piano.png" width="260" alt="Piano"><br>Piano</td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/images/screens/voice-health.png" width="260" alt="声音健康"><br>声音健康</td>
-    <td align="center"><img src="docs/images/screens/voice-library.png" width="260" alt="声音知识库"><br>声音知识库</td>
-    <td align="center"><img src="docs/images/screens/settings.png" width="260" alt="设置"><br>设置</td>
+    <td align="center"><img src="docs/images/screens/voice-health.png" width="260" alt="Voice health"><br>Voice health</td>
+    <td align="center"><img src="docs/images/screens/voice-library.png" width="260" alt="Voice knowledge base"><br>Voice knowledge base</td>
+    <td align="center"><img src="docs/images/screens/settings.png" width="260" alt="Settings"><br>Settings</td>
   </tr>
 </table>
 
-## 模型训练
+## Model training
 
-我们训练了两个模型来判断嗓音的音色与自然度。
+We trained two models to assess vocal timbre and naturalness.
 
-### 音色分模型（[VFP](https://arxiv.org/html/2404.15176v1)）
+### Timbre score model ([VFP](https://arxiv.org/html/2404.15176v1))
 
-判断嗓音在社会上被认可为男性/女性的可能性。模型使用典型二元性别中文语音训练，并利用我们在 8 月派发的问卷结果，使用保序回归方式校正了针对跨性别女性的分数。
+This model estimates how likely a voice is to be socially perceived as masculine or feminine. It was trained on typical binary-gender Mandarin speech and calibrated for transfeminine users using isotonic regression based on survey results distributed in August.
 
-#### 架构
+#### Architecture
 
-![VFP 模型架构](docs/images/model-vfp-architecture.png)
+![VFP model architecture](docs/images/model-vfp-architecture.png)
 
 #### Datasets
 
-| **项目**           | **数据**                                            |
-| ------------------ | --------------------------------------------------- |
-| **BGC** **语料**   | **AISHELL-3**，普通话朗读语音                       |
-| **BGC** **说话人** | **84** **人（女性** **42 /** **男性** **42**）      |
-| **BGC** **语音**   | **33,382** **条**                                   |
-| **训练集**         | **68** **位说话人（女性** **34 /** **男性** **34**） |
-| **开发集**         | **16** **位说话人（女性** **8 /** **男性** **8**）  |
-| **划分方式**       | **说话人隔离**                                      |
-| **听感校准录音**   | **45** **段**                                       |
-| **当前标签文件**   | **每段** **31** **人判断，共** **1,395** **次判断** |
-| **音频窗口**       | **1.515** **秒**                                    |
-| **推理步长**       | **100 ms**                                          |
+| **Item** | **Data** |
+| --- | --- |
+| **BGC corpus** | **AISHELL-3**, read Mandarin speech |
+| **BGC speakers** | **84** (**42 female / 42 male**) |
+| **BGC utterances** | **33,382** |
+| **Training set** | **68 speakers** (**34 female / 34 male**) |
+| **Development set** | **16 speakers** (**8 female / 8 male**) |
+| **Split method** | **Speaker-disjoint** |
+| **Perceptual calibration recordings** | **45** |
+| **Current label file** | **31 judgments per clip, 1,395 judgments total** |
+| **Audio window** | **1.515 seconds** |
+| **Inference hop** | **100 ms** |
 
-#### Result
+#### Results
 
-| **指标**                    | **结果**     |
-| --------------------------- | ------------ |
-| **开发集女性准确率**        | **100%**     |
-| **开发集男性准确率**        | **100%**     |
-| **校准样本内** **R²**       | **0.8039**   |
-| **校准留一听感录音** **R²** | **0.7082**   |
-| **校准输出范围**            | **0–96.875** |
+| **Metric** | **Result** |
+| --- | --- |
+| **Development-set female accuracy** | **100%** |
+| **Development-set male accuracy** | **100%** |
+| **In-sample calibration R²** | **0.8039** |
+| **Leave-one-recording-out calibration R²** | **0.7082** |
+| **Calibration output range** | **0–96.875** |
 
-### 自然度模型
+### Naturalness model
 
-判断是否夹嗓或使用假音。模型使用 121 条移动端跨性别语音录音训练。语音来自 Pitchee 测试版，训练前已获得上传者许可。
+This model detects constricted or pressed voice and falsetto. It was trained on 121 mobile voice recordings from transgender people. The recordings came from the Pitchee beta, and permission was obtained from every uploader before training.
 
-#### 架构
+#### Architecture
 
-![自然度模型架构](docs/images/model-naturalness-architecture.png)
+![Naturalness model architecture](docs/images/model-naturalness-architecture.png)
 
-#### Result
+#### Results
 
-![自然度模型评估结果](docs/images/model-naturalness-evaluation.png)
+![Naturalness model evaluation results](docs/images/model-naturalness-evaluation.png)
 
 | **label** | **label_name** | **clips** | **mean_probability** | **median_probability** | **standard_deviation** |
-| --------- | -------------- | --------- | -------------------- | ---------------------- | ---------------------- |
-| **0**     | natural        | 61        | 0.2978               | 0.2346                 | 0.2738                 |
-| **1**     | pressed        | 56        | 0.6917               | 0.7384                 | 0.2503                 |
+| --- | --- | --- | --- | --- | --- |
+| **0** | natural | 61 | 0.2978 | 0.2346 | 0.2738 |
+| **1** | pressed | 56 | 0.6917 | 0.7384 | 0.2503 |
 
-## 开源引用与许可证
+## Open-source references and license
 
-Pitchee Android 以 **GPL-3.0-only** 发布，许可证全文见 [`LICENSE`](LICENSE)。
+Pitchee Android is released under **GPL-3.0-only**. The full license text is available in [`LICENSE`](LICENSE).
 
-本项目使用了以下开源项目：
+This project uses the following open-source projects:
 
-| 项目 | 许可证 | 地址 |
+| Project | License | Repository |
 | --- | --- | --- |
 | PitcheeCore | GPL-3.0-only | <https://github.com/project-pitchee/Pitchee-core> |
 | SwiftF0 | MIT | <https://github.com/lars76/swift-f0> |
