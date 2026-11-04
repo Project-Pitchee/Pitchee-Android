@@ -7,6 +7,7 @@
   <img src="https://img.shields.io/github/downloads/Project-Pitchee/Pitchee-Android/total?style=for-the-badge&amp;color=4A5AAE&amp;labelColor=111827" alt="Downloads">
   <img src="https://img.shields.io/github/stars/Project-Pitchee/Pitchee-Android?style=for-the-badge&amp;logo=github&amp;color=6495ED&amp;labelColor=111827" alt="Stars">
   <img src="https://img.shields.io/github/license/Project-Pitchee/Pitchee-Android?style=for-the-badge&amp;color=2F8F5B&amp;labelColor=111827" alt="License">
+  <a href="https://discord.gg/r55jADhHBs"><img src="https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&amp;logo=discord&amp;logoColor=white" alt="Discord"></a>
 </p>
 
 Pitchee is a voice-training app for transgender people. It helps you analyze your voice, track pitch, and follow changes over time.
