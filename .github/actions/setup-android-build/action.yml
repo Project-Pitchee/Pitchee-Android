@@ -1,0 +1,47 @@
+name: Set up Android build
+description: Install JDK 17, the Android SDK packages this app builds with, and Gradle.
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: "17"
+
+    - name: Choose Android SDK location
+      shell: bash
+      run: |
+        echo "ANDROID_SDK_ROOT=$HOME/.android/sdk" >> "$GITHUB_ENV"
+        echo "ANDROID_HOME=$HOME/.android/sdk" >> "$GITHUB_ENV"
+        mkdir -p "$HOME/.android/sdk"
+
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v4
+
+    - name: Cache Android SDK packages
+      id: sdk-cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ env.HOME }}/.android/sdk/platforms
+          ${{ env.HOME }}/.android/sdk/build-tools
+          ${{ env.HOME }}/.android/sdk/platform-tools
+          ${{ env.HOME }}/.android/sdk/ndk
+          ${{ env.HOME }}/.android/sdk/cmake
+          ${{ env.HOME }}/.android/sdk/licenses
+        key: android-sdk-${{ runner.os }}-platform-37.0-build-tools-36.0.0-ndk-26.3.11579264-cmake-3.22.1
+
+    - name: Install SDK packages
+      if: steps.sdk-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        sdkmanager --install \
+          "platforms;android-37.0" \
+          "build-tools;36.0.0" \
+          "ndk;26.3.11579264" \
+          "cmake;3.22.1"
+
+    - name: Set up Gradle
+      uses: gradle/actions/setup-gradle@v4
