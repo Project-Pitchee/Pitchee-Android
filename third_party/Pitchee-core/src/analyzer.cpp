@@ -70,6 +70,7 @@ namespace {
 
 constexpr double kF0WindowSeconds = 0.05;
 constexpr int kSwiftF0FrameHopSamples = 256;
+constexpr size_t kSwiftF0ChunkSamples = 65536;
 constexpr int kRealtimeF0MinContextSamples = 1024;
 constexpr double kSwiftF0FrameIntervalSeconds =
     static_cast<double>(kSwiftF0FrameHopSamples) / pitchee::kSampleRate;
@@ -103,6 +104,42 @@ F0Thresholds normalize_f0_thresholds(
         throw std::invalid_argument("invalid SwiftF0 thresholds");
     }
     return result;
+}
+
+void ensure_ecapa_models(pitchee_analyzer_t& analyzer) {
+    if (analyzer.ecapa_frontend && analyzer.ecapa) return;
+    analyzer.ecapa_frontend.reset();
+    analyzer.ecapa.reset();
+    analyzer.ecapa_frontend = std::make_unique<pitchee::ModelRuntime>(
+        analyzer.model_directory / "ECAPAFrontend.onnx",
+        analyzer.intra_op_threads,
+        false
+    );
+    analyzer.ecapa = std::make_unique<pitchee::ModelRuntime>(
+        analyzer.model_directory / "ECAPA.onnx",
+        analyzer.intra_op_threads,
+        analyzer.use_coreml
+    );
+}
+
+void release_ecapa_models(pitchee_analyzer_t& analyzer) {
+    analyzer.ecapa.reset();
+    analyzer.ecapa_frontend.reset();
+}
+
+void ensure_analysis_heads(pitchee_analyzer_t& analyzer) {
+    if (analyzer.vfp_head && analyzer.naturalness) return;
+    analyzer.vfp_head.reset();
+    analyzer.naturalness.reset();
+    analyzer.vfp_head = std::make_unique<pitchee::ModelRuntime>(
+        analyzer.model_directory / "VFPHead.onnx",
+        analyzer.intra_op_threads,
+        false
+    );
+    analyzer.naturalness = std::make_unique<pitchee::NaturalnessModel>(
+        analyzer.model_directory / "Naturalness.onnx",
+        analyzer.intra_op_threads
+    );
 }
 
 bool valid_score_profile(pitchee_score_profile_t score_profile) {
@@ -168,26 +205,64 @@ pitchee::PitchResult analyze_pitch(
     PitchTiming* timing = nullptr
 ) {
     reporter.progress(PITCHEE_PROGRESS_STAGE_ANALYZING_F0, 0, 1);
-    std::vector<float> input = samples;
-    if (input.size() < 256) input.resize(256, 0.0f);
-    pitchee::Tensor tensor;
-    tensor.shape = {1, static_cast<int64_t>(input.size())};
-    tensor.values = std::move(input);
     const auto model_started = std::chrono::steady_clock::now();
-    auto outputs = model.run_all({{"input_audio", std::move(tensor)}});
+    pitchee::PitchResult result;
+    result.pitch_hz.reserve(samples.size() / kSwiftF0FrameHopSamples + 1);
+    result.confidence.reserve(samples.size() / kSwiftF0FrameHopSamples + 1);
+    for (size_t chunk_start = 0; chunk_start < samples.size();
+         chunk_start += kSwiftF0ChunkSamples) {
+        const size_t chunk_count = std::min(
+            kSwiftF0ChunkSamples,
+            samples.size() - chunk_start
+        );
+        std::vector<float> input(
+            samples.begin() + static_cast<std::ptrdiff_t>(chunk_start),
+            samples.begin() + static_cast<std::ptrdiff_t>(chunk_start + chunk_count)
+        );
+        if (input.size() < 256) input.resize(256, 0.0f);
+        pitchee::Tensor tensor;
+        tensor.shape = {1, static_cast<int64_t>(input.size())};
+        tensor.values = std::move(input);
+        auto outputs = model.run_all({{"input_audio", std::move(tensor)}});
+        if (outputs.size() < 2 || outputs[0].values.size() != outputs[1].values.size()) {
+            throw std::runtime_error("SwiftF0 returned invalid output");
+        }
+        const size_t chunk_frames = outputs[0].values.size();
+        result.pitch_hz.insert(
+            result.pitch_hz.end(),
+            outputs[0].values.begin(),
+            outputs[0].values.end()
+        );
+        result.confidence.insert(
+            result.confidence.end(),
+            outputs[1].values.begin(),
+            outputs[1].values.end()
+        );
+        for (size_t index = 0; index < chunk_frames; ++index) {
+            result.timestamps.push_back(static_cast<float>(
+                (
+                    static_cast<double>(chunk_start)
+                    + static_cast<double>(index * kSwiftF0FrameHopSamples)
+                    + 127.5
+                ) / pitchee::kSampleRate
+            ));
+        }
+        reporter.progress(
+            PITCHEE_PROGRESS_STAGE_ANALYZING_F0,
+            chunk_start + chunk_count,
+            samples.size()
+        );
+    }
     if (timing) {
         timing->model_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - model_started
         ).count();
     }
-    if (outputs.size() < 2 || outputs[0].values.size() != outputs[1].values.size()) {
+    if (result.pitch_hz.empty()
+        || result.pitch_hz.size() != result.confidence.size()) {
         throw std::runtime_error("SwiftF0 returned invalid output");
     }
 
-    pitchee::PitchResult result;
-    result.pitch_hz = std::move(outputs[0].values);
-    result.confidence = std::move(outputs[1].values);
-    result.timestamps.resize(result.pitch_hz.size());
     result.voicing.resize(result.pitch_hz.size(), 0);
     std::vector<float> voiced_pitch;
     const size_t f0_window_samples = static_cast<size_t>(
@@ -200,9 +275,6 @@ pitchee::PitchResult analyze_pitch(
     std::vector<double> f0_window_sums(f0_window_count, 0.0);
     std::vector<size_t> f0_window_counts(f0_window_count, 0);
     for (size_t index = 0; index < result.pitch_hz.size(); ++index) {
-        result.timestamps[index] = static_cast<float>(
-            (static_cast<double>(index * 256) + 127.5) / 16000.0
-        );
         const bool voiced =
             result.confidence[index] > thresholds.min_confidence
             && result.pitch_hz[index] >= thresholds.min_hz
@@ -517,21 +589,6 @@ pitchee_status_t pitchee_analyzer_create(
         analyzer->max_f0_hz = thresholds.max_hz;
         analyzer->min_f0_confidence = thresholds.min_confidence;
         const auto directory = analyzer->model_directory;
-        analyzer->ecapa_frontend = std::make_unique<pitchee::ModelRuntime>(
-            directory / "ECAPAFrontend.onnx",
-            analyzer->intra_op_threads,
-            false
-        );
-        analyzer->ecapa = std::make_unique<pitchee::ModelRuntime>(
-            directory / "ECAPA.onnx",
-            analyzer->intra_op_threads,
-            analyzer->use_coreml
-        );
-        analyzer->vfp_head = std::make_unique<pitchee::ModelRuntime>(
-            directory / "VFPHead.onnx",
-            analyzer->intra_op_threads,
-            false
-        );
         analyzer->swift_f0 = std::make_unique<pitchee::ModelRuntime>(
             directory / "SwiftF0.onnx",
             analyzer->intra_op_threads,
@@ -539,10 +596,6 @@ pitchee_status_t pitchee_analyzer_create(
         );
         analyzer->vad = std::make_unique<pitchee::VadDetector>(
             directory / "SileroVAD.onnx",
-            analyzer->intra_op_threads
-        );
-        analyzer->naturalness = std::make_unique<pitchee::NaturalnessModel>(
-            directory / "Naturalness.onnx",
             analyzer->intra_op_threads
         );
         *out_analyzer = analyzer.release();
@@ -668,6 +721,7 @@ pitchee_status_t run_voice_health_pcm_impl(
         }
         reporter.progress(PITCHEE_PROGRESS_STAGE_PREPARING_VOICE_HEALTH, 1, 1);
 
+        ensure_ecapa_models(*analyzer);
         const auto embeddings = embed_waveforms(
             *analyzer->ecapa_frontend,
             *analyzer->ecapa,
@@ -675,6 +729,7 @@ pitchee_status_t run_voice_health_pcm_impl(
             reporter,
             PITCHEE_PROGRESS_STAGE_EXTRACTING_VOICE_HEALTH_EMBEDDINGS
         );
+        release_ecapa_models(*analyzer);
         reporter.progress(PITCHEE_PROGRESS_STAGE_SCORING_VOICE_HEALTH, 0, 1);
         const auto health = pitchee::analyze_voice_health(
             signal,
@@ -707,9 +762,11 @@ pitchee_status_t run_voice_health_pcm_impl(
         reporter.progress(PITCHEE_PROGRESS_STAGE_COMPLETED, 1, 1);
         return PITCHEE_SUCCESS;
     } catch (const std::invalid_argument& error) {
+        release_ecapa_models(*analyzer);
         set_error(error_message, error_message_capacity, error.what());
         return PITCHEE_ERROR_INVALID_ARGUMENT;
     } catch (const std::exception& error) {
+        release_ecapa_models(*analyzer);
         set_error(error_message, error_message_capacity, error.what());
         return status_for_exception(error);
     }
@@ -789,6 +846,7 @@ pitchee_status_t analyze_pcm_impl(
         }
         reporter.progress(PITCHEE_PROGRESS_STAGE_PREPARING_VFP_WINDOWS, 1, 1);
 
+        ensure_ecapa_models(*analyzer);
         std::vector<std::vector<float>> vfp_patches;
         vfp_patches.reserve(source_windows.size());
         for (const auto& window : source_windows) {
@@ -801,6 +859,8 @@ pitchee_status_t analyze_pcm_impl(
             reporter,
             PITCHEE_PROGRESS_STAGE_EXTRACTING_VFP_EMBEDDINGS
         );
+        release_ecapa_models(*analyzer);
+        ensure_analysis_heads(*analyzer);
         const auto probabilities = classify_embeddings(
             *analyzer->vfp_head,
             speech_embeddings,
@@ -940,9 +1000,11 @@ pitchee_status_t analyze_pcm_impl(
         reporter.progress(PITCHEE_PROGRESS_STAGE_COMPLETED, 1, 1);
         return PITCHEE_SUCCESS;
     } catch (const std::invalid_argument& error) {
+        release_ecapa_models(*analyzer);
         set_error(error_message, error_message_capacity, error.what());
         return PITCHEE_ERROR_INVALID_ARGUMENT;
     } catch (const std::exception& error) {
+        release_ecapa_models(*analyzer);
         set_error(error_message, error_message_capacity, error.what());
         return status_for_exception(error);
     }

@@ -224,10 +224,15 @@ struct ModelRuntime::Impl {
         if (ncnn_requested_for(path)) {
             const auto spec = ncnn_spec_for(path);
             if (spec) {
+                const bool memory_sensitive_model =
+                    path.filename().string() == "SwiftF0.onnx";
                 option.num_threads = intra_op_threads;
-                option.use_packing_layout = true;
-                option.use_winograd_convolution = true;
-                option.use_sgemm_convolution = true;
+                // SwiftF0 processes the entire recording in one pass. Its
+                // optimized convolution layouts create a large transient
+                // memory peak on lower-memory Android devices.
+                option.use_packing_layout = !memory_sensitive_model;
+                option.use_winograd_convolution = !memory_sensitive_model;
+                option.use_sgemm_convolution = !memory_sensitive_model;
                 option.use_fp16_packed = false;
                 option.use_fp16_storage = false;
                 option.use_fp16_arithmetic = false;

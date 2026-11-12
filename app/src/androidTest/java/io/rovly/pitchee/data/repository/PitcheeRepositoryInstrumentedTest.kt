@@ -1,6 +1,7 @@
 package io.rovly.pitchee.data.repository
 
 import android.net.Uri
+import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.rovly.pitchee.data.model.FeminineTimeline
@@ -9,8 +10,14 @@ import io.rovly.pitchee.data.repository.PitcheeRepository
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.PI
 import kotlin.math.sin
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -175,6 +182,72 @@ class PitcheeRepositoryInstrumentedTest {
         } finally {
             repository.close()
         }
+    }
+
+    @Test(timeout = 120_000)
+    fun analyzesLongSpeechWithoutProcessDeath() = runBlocking {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val repository = PitcheeRepository(context)
+        val speech = File(context.cacheDir, "pitchee-long-speech.m4a")
+        try {
+            instrumentation.context.assets.open("pitchee-speech-long.m4a").use { input ->
+                speech.outputStream().use(input::copyTo)
+            }
+            val pcm = repository.decode(Uri.fromFile(speech))
+            assertTrue(
+                "Expected a recording longer than 40 seconds",
+                pcm.durationSeconds > 40.0,
+            )
+            Log.i(
+                "LongAnalysisTest",
+                "Starting ${pcm.durationSeconds}s analysis; RSS=${currentRssMb()} MB",
+            )
+            val peakRssMb = AtomicLong(currentRssMb())
+            val sampler = launch(Dispatchers.IO) {
+                while (isActive) {
+                    val rss = currentRssMb()
+                    peakRssMb.updateAndGet { previous -> maxOf(previous, rss) }
+                    delay(25)
+                }
+            }
+            var lastStage: PitcheeProgressStage? = null
+            val result = repository.analyzePcm(
+                samples = pcm.samples,
+                sampleRate = pcm.sampleRate,
+                channels = pcm.channels,
+                onProgress = { progress ->
+                    if (progress.stage != lastStage) {
+                        lastStage = progress.stage
+                        Log.i(
+                            "LongAnalysisTest",
+                            "Stage ${progress.stage}; RSS=${currentRssMb()} MB",
+                        )
+                    }
+                },
+            )
+            sampler.cancelAndJoin()
+            Log.i(
+                "LongAnalysisTest",
+                "Completed analysis; windows=${result.vfp.windowCount}, " +
+                    "peakRSS=${peakRssMb.get()} MB, RSS=${currentRssMb()} MB",
+            )
+            assertTrue("Expected VFP windows", result.vfp.windowCount > 0)
+            assertTrue(result.composite.finalScore in 0.0..100.0)
+        } finally {
+            speech.delete()
+            repository.close()
+        }
+    }
+
+    private fun currentRssMb(): Long {
+        val status = File("/proc/self/status")
+            .takeIf(File::isFile)
+            ?.readLines()
+            .orEmpty()
+        val rssLine = status.firstOrNull { it.startsWith("VmRSS:") } ?: return -1
+        val rssKb = rssLine.filter(Char::isDigit).toLongOrNull() ?: return -1
+        return rssKb / 1024
     }
 
     private fun writeSilenceWav(file: File) {

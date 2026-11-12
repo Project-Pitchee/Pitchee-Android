@@ -14,7 +14,7 @@ namespace pitchee {
 constexpr int kSampleRate = 16000;
 constexpr int kPatchSamples = 24240;
 constexpr int kStrideSamples = 1600;
-constexpr int kEmbeddingBatchSize = 8;
+constexpr int kEmbeddingBatchSize = 4;
 constexpr int kEmbeddingDimensions = 192;
 constexpr int kSchemaVersion = 3;
 // An infinite limit disables input truncation in the analyzer.
