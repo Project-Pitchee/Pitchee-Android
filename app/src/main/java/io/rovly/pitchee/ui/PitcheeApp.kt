@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -45,6 +47,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -112,6 +115,18 @@ private enum class PitcheeDestination(
     MORE(R.string.nav_more, R.drawable.ic_more),
 }
 
+private fun cleanReleaseNotes(notes: String): String =
+    notes
+        .replace("\r\n", "\n")
+        .replace(Regex("```[\\s\\S]*?```"), "")
+        .replace(Regex("!\\[[^]]*]\\([^)]*\\)"), "")
+        .replace(Regex("\\[([^]]+)]\\([^)]*\\)"), "$1")
+        .replace(Regex("(?m)^#{1,6}\\s*"), "")
+        .replace(Regex("(?m)^\\s*[-*+]\\s+"), "• ")
+        .replace(Regex("\\n{3,}"), "\n\n")
+        .trim()
+        .take(1_800)
+
 @Preview
 @Composable
 fun PitcheeApp() {
@@ -142,25 +157,40 @@ fun PitcheeApp() {
         ActivityResultContracts.StartActivityForResult(),
     ) {
         val file = pendingInstallFile
-        pendingInstallFile = null
-        if (file != null && ApkInstaller.canInstall(context)) {
-            runCatching { ApkInstaller.install(context, file) }
-            updateViewModel.markInstallLaunched()
-        }
         val release = pendingDownloadRelease
+        pendingInstallFile = null
         pendingDownloadRelease = null
-        if (release != null && ApkInstaller.canInstall(context)) {
-            updateViewModel.download(release)
+        if (ApkInstaller.canInstall(context)) {
+            file?.let {
+                runCatching { ApkInstaller.install(context, file) }
+                updateViewModel.markInstallLaunched()
+            }
+            release?.let {
+                updateViewModel.download(release)
+            }
         }
     }
 
-    fun startUpdate(release: GitHubRelease) {
-        updateViewModel.hideUpdate()
+    fun downloadUpdate(release: GitHubRelease) {
         if (ApkInstaller.canInstall(context)) {
             updateViewModel.download(release)
         } else {
             pendingDownloadRelease = release
-            ApkInstaller.requestInstallPermission(context)
+            ApkInstaller.installPermissionIntent(context)?.let(
+                installPermissionLauncher::launch,
+            )
+        }
+    }
+
+    fun installUpdate(file: File) {
+        if (ApkInstaller.canInstall(context)) {
+            runCatching { ApkInstaller.install(context, file) }
+            updateViewModel.markInstallLaunched()
+        } else {
+            pendingInstallFile = file
+            ApkInstaller.installPermissionIntent(context)?.let(
+                installPermissionLauncher::launch,
+            )
         }
     }
     val destinations = remember { PitcheeDestination.entries }
@@ -187,8 +217,7 @@ fun PitcheeApp() {
             runCatching { ApkInstaller.install(context, ready.file) }
             updateViewModel.markInstallLaunched()
         } else {
-            pendingInstallFile = ready.file
-            ApkInstaller.requestInstallPermission(context)
+            installUpdate(ready.file)
         }
     }
 
@@ -199,18 +228,43 @@ fun PitcheeApp() {
             }
             AlertDialog(
                 onDismissRequest = { updateViewModel.dismissUpdate(snoozeForWeek) },
-                title = { Text(stringResource(R.string.update_found_title)) },
-                text = {
+                title = {
                     Column {
-                        Text(state.release.displayName)
-                        if (state.release.notes.isNotBlank()) {
-                            Spacer(Modifier.height(8.dp))
-                            Text(state.release.notes.take(600))
+                        Text(stringResource(R.string.update_found_title))
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = state.release.displayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                },
+                text = {
+                    Column(Modifier.fillMaxWidth()) {
+                        val notes = remember(state.release.tagName) {
+                            cleanReleaseNotes(state.release.notes)
+                        }
+                        if (notes.isNotEmpty()) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                shape = RoundedCornerShape(16.dp),
+                            ) {
+                                Text(
+                                    text = notes,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 220.dp)
+                                        .verticalScroll(rememberScrollState())
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 12.dp)
+                                .padding(top = 10.dp, bottom = 2.dp)
                                 .clickable { snoozeForWeek = !snoozeForWeek },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -226,7 +280,7 @@ fun PitcheeApp() {
                     TextButton(
                         onClick = {
                             if (snoozeForWeek) updateViewModel.snoozeUpdatesForWeek()
-                            startUpdate(state.release)
+                            downloadUpdate(state.release)
                         },
                     ) {
                         Text(stringResource(R.string.update_download))
@@ -246,8 +300,25 @@ fun PitcheeApp() {
             onDismissRequest = {},
             title = { Text(stringResource(R.string.update_downloading_title)) },
             text = {
-                Column {
-                    Text(state.release.displayName)
+                Column(Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = state.release.displayName,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        state.progress?.let { progress ->
+                            Text(
+                                text = "${(progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
                     Spacer(Modifier.height(12.dp))
                     val progress = state.progress
                     if (progress == null) {
@@ -261,6 +332,22 @@ fun PitcheeApp() {
                 }
             },
             confirmButton = {},
+        )
+
+        is UpdateUiState.ReadyToInstall -> AlertDialog(
+            onDismissRequest = updateViewModel::dismissReadyToInstall,
+            title = { Text(state.release.displayName) },
+            text = { Text(stringResource(R.string.update_ready)) },
+            confirmButton = {
+                TextButton(onClick = { installUpdate(state.file) }) {
+                    Text(stringResource(android.R.string.ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = updateViewModel::dismissReadyToInstall) {
+                    Text(stringResource(R.string.update_later))
+                }
+            },
         )
 
         else -> Unit

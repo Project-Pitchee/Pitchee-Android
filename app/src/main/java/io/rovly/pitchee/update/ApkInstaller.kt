@@ -13,15 +13,15 @@ object ApkInstaller {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
             context.packageManager.canRequestPackageInstalls()
 
-    fun requestInstallPermission(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        context.startActivity(
+    fun installPermissionIntent(context: Context): Intent? =
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            null
+        } else {
             Intent(
                 Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                 Uri.parse("package:${context.packageName}"),
-            ),
-        )
-    }
+            )
+        }
 
     fun install(context: Context, file: File) {
         val uri = FileProvider.getUriForFile(

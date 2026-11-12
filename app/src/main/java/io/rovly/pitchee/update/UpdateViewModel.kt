@@ -120,12 +120,6 @@ class UpdateViewModel(
             .apply()
     }
 
-    fun hideUpdate() {
-        if (mutableState.value is UpdateUiState.Available) {
-            mutableState.value = UpdateUiState.Idle
-        }
-    }
-
     fun download(release: GitHubRelease) {
         if (mutableState.value is UpdateUiState.Downloading) return
         preferences.edit().remove(KEY_NOTIFIED_RELEASE).apply()
@@ -146,6 +140,12 @@ class UpdateViewModel(
     fun markInstallLaunched() {
         preferences.edit().remove(KEY_NOTIFIED_RELEASE).apply()
         mutableState.value = UpdateUiState.Idle
+    }
+
+    fun dismissReadyToInstall() {
+        if (mutableState.value is UpdateUiState.ReadyToInstall) {
+            mutableState.value = UpdateUiState.Idle
+        }
     }
 
     private fun notifiedReleaseTag(): String? =
