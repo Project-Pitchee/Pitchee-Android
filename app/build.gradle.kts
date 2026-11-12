@@ -1,10 +1,13 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.sentry.android.gradle)
 }
 
 val appVersionCode = providers.gradleProperty("versionCode").orNull?.toIntOrNull() ?: 1_002_001
 val appVersionName = providers.gradleProperty("versionName").orNull ?: "1.2.1"
+val sentryAuthToken = providers.environmentVariable("SENTRY_AUTH_TOKEN").orNull
+val hasSentryAuthToken = !sentryAuthToken.isNullOrBlank()
 val releaseStorePath = System.getenv("PITCHEE_KEYSTORE_PATH")
 val releaseStorePassword = System.getenv("PITCHEE_STORE_PASSWORD")
 val releaseKeyAlias = System.getenv("PITCHEE_KEY_ALIAS")
@@ -65,6 +68,13 @@ android {
         }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["sentryEnvironment"] = if (appVersionName.startsWith("nightly-")) {
+            "nightly"
+        } else {
+            "production"
+        }
+        manifestPlaceholders["sentryRelease"] = "$appVersionName+$appVersionCode"
+        manifestPlaceholders["sentryTracesSampleRate"] = "1.0"
 
         externalNativeBuild {
             cmake {
@@ -109,6 +119,9 @@ android {
         }
     }
     buildTypes {
+        debug {
+            manifestPlaceholders["sentryEnvironment"] = "development"
+        }
         release {
             signingConfig = signingConfigs.findByName("release")
             optimization {
@@ -129,6 +142,18 @@ android {
             useLegacyPackaging = false
         }
     }
+}
+
+sentry {
+    org = "nexaorion"
+    projectName = "pitchee-android"
+    authToken = sentryAuthToken
+    includeProguardMapping = hasSentryAuthToken
+    autoUploadProguardMapping = hasSentryAuthToken
+    uploadNativeSymbols = hasSentryAuthToken
+    autoUploadNativeSymbols = hasSentryAuthToken
+    includeSourceContext = hasSentryAuthToken
+    includeNativeSources = hasSentryAuthToken
 }
 
 dependencies {

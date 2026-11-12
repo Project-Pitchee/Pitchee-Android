@@ -45,6 +45,7 @@ jobs:
           PITCHEE_STORE_PASSWORD: ${{ secrets.PITCHEE_STORE_PASSWORD }}
           PITCHEE_KEY_ALIAS: ${{ secrets.PITCHEE_KEY_ALIAS }}
           PITCHEE_KEY_PASSWORD: ${{ secrets.PITCHEE_KEY_PASSWORD }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           if [ -n "$PITCHEE_KEYSTORE_BASE64" ] && [ -n "$PITCHEE_STORE_PASSWORD" ] && [ -n "$PITCHEE_KEY_ALIAS" ] && [ -n "$PITCHEE_KEY_PASSWORD" ]; then
             echo "$PITCHEE_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/pitchee-release.jks"

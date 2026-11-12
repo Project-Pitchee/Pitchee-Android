@@ -16,6 +16,7 @@ lifecycle = "2.11.0"
 zentone = "2.4.0"
 uiToolingPreview = "1.12.1"
 uiTooling = "1.12.1"
+sentry = "6.25.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -43,3 +44,4 @@ androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-toolin
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+sentry-android-gradle = { id = "io.sentry.android.gradle", version.ref = "sentry" }

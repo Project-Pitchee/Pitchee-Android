@@ -10,12 +10,26 @@ Nightly 必须使用同一个发布证书。在 `Pitchee-Android` 仓库的
 - `PITCHEE_STORE_PASSWORD`：keystore 密码
 - `PITCHEE_KEY_ALIAS`：key alias
 - `PITCHEE_KEY_PASSWORD`：key password
+- `SENTRY_AUTH_TOKEN`：上传 R8 mapping、Native symbols 和源码上下文所需的 Sentry
+  Organization Auth Token
 
 生成 Base64：
 
 ```bash
 base64 -i pitchee-release.jks | tr -d '\n'
 ```
+
+Sentry Auth Token 可在
+<https://nexaorion.sentry.io/settings/auth-tokens/> 创建。未配置该 Secret 时，
+应用仍会上报错误和性能事件，但 Release 构建不会上传符号文件。
+
+## Sentry
+
+- Organization：`nexaorion`
+- Project：`pitchee-android`
+- Debug 环境：`development`
+- Release 环境：`production`
+- Nightly 环境：`nightly`
 
 ## Nightly
 

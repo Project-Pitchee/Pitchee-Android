@@ -23,6 +23,66 @@
         <meta-data
             android:name="autoStoreLocales"
             android:value="true" />
+        <meta-data
+            android:name="io.sentry.dsn"
+            android:value="https://5d804a4677c809acef448fa53e2fd152@o4509333304573952.ingest.us.sentry.io/4512374217179136" />
+        <meta-data
+            android:name="io.sentry.environment"
+            android:value="${sentryEnvironment}" />
+        <meta-data
+            android:name="io.sentry.release"
+            android:value="${sentryRelease}" />
+        <meta-data
+            android:name="io.sentry.data-collection.user-info"
+            android:value="false" />
+        <meta-data
+            android:name="io.sentry.data-collection.http-bodies"
+            android:value="" />
+        <meta-data
+            android:name="io.sentry.data-collection.cookies.mode"
+            android:value="off" />
+        <meta-data
+            android:name="io.sentry.data-collection.http-headers.request.mode"
+            android:value="deny_list" />
+        <meta-data
+            android:name="io.sentry.data-collection.http-headers.request.terms"
+            android:value="forwarded,-ip,remote-,via,-user" />
+        <meta-data
+            android:name="io.sentry.data-collection.http-headers.response.mode"
+            android:value="deny_list" />
+        <meta-data
+            android:name="io.sentry.data-collection.http-headers.response.terms"
+            android:value="forwarded,-ip,remote-,via,-user" />
+        <meta-data
+            android:name="io.sentry.data-collection.url-query-params.mode"
+            android:value="off" />
+        <meta-data
+            android:name="io.sentry.data-collection.graphql.document"
+            android:value="false" />
+        <meta-data
+            android:name="io.sentry.data-collection.graphql.variables"
+            android:value="false" />
+        <meta-data
+            android:name="io.sentry.data-collection.database-query-data"
+            android:value="false" />
+        <meta-data
+            android:name="io.sentry.data-collection.file-paths"
+            android:value="false" />
+        <meta-data
+            android:name="io.sentry.traces.sample-rate"
+            android:value="${sentryTracesSampleRate}" />
+        <meta-data
+            android:name="io.sentry.traces.user-interaction.enable"
+            android:value="true" />
+        <meta-data
+            android:name="io.sentry.attach-screenshot"
+            android:value="false" />
+        <meta-data
+            android:name="io.sentry.attach-view-hierarchy"
+            android:value="false" />
+        <meta-data
+            android:name="io.sentry.tombstone.enable"
+            android:value="true" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
