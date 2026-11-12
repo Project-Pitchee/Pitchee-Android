@@ -6,3 +6,8 @@
 -keep interface space.pitchee.core.PitcheeVadCallback { *; }
 -keep interface space.pitchee.core.PitcheeF0FrameCallback { *; }
 -keep interface space.pitchee.core.PitcheeSpectrumFrameCallback { *; }
+
+# JLaTeXMath loads macros, atoms, fonts and parsers by class name from its
+# bundled XML resources. R8 cannot infer these reflective constructor calls.
+-keep class org.scilab.forge.jlatexmath.** { *; }
+-keep class ru.noties.jlatexmath.** { *; }
